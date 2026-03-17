@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flip Analyzer — Tampa Bay</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#181c25;--surface2:#1e2330;
+  --border:rgba(255,255,255,0.08);--accent:#f0c040;--accent2:#4af0a0;
+  --danger:#f05050;--text:#e8e4dc;--muted:#7a7f8e;
+  --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:13px;min-height:100vh}
+.app{max-width:780px;margin:0 auto;padding:24px 20px 60px}
+
+/* Header */
+.header{display:flex;align-items:center;gap:12px;margin-bottom:28px;border-bottom:1px solid var(--border);padding-bottom:16px}
+.header h1{font-family:var(--font-head);font-size:24px;font-weight:800;color:var(--accent);letter-spacing:-0.5px}
+.badge{display:inline-flex;align-items:center;gap:6px;background:rgba(240,192,64,0.1);border:1px solid rgba(240,192,64,0.25);color:var(--accent);border-radius:4px;padding:3px 10px;font-size:11px;margin-left:auto}
+.dot{width:7px;height:7px;background:var(--accent2);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* API Config */
+.config-panel{background:rgba(240,192,64,0.04);border:1px solid rgba(240,192,64,0.18);border-radius:8px;padding:16px;margin-bottom:18px}
+.config-title{font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--accent);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.config-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.config-field{display:flex;flex-direction:column;gap:4px}
+.config-field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.config-field input{background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px}
+.config-field input:focus{outline:none;border-color:rgba(240,192,64,.4)}
+.config-field input::placeholder{color:var(--muted)}
+.btn-save{background:rgba(240,192,64,.15);border:1px solid rgba(240,192,64,.3);color:var(--accent);font-family:var(--font-mono);font-size:12px;padding:8px 16px;border-radius:5px;cursor:pointer;white-space:nowrap;height:37px}
+.btn-save:hover{background:rgba(240,192,64,.25)}
+.config-status{display:flex;gap:12px;margin-top:8px;font-size:11px}
+.status-item{padding:3px 8px;border-radius:3px}
+.status-ok{background:rgba(74,240,160,.1);color:var(--accent2)}
+.status-err{background:rgba(240,80,80,.1);color:var(--danger)}
+.config-hint{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6}
+.config-hint a{color:var(--accent);text-decoration:none}
+
+/* Sections */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
+.slabel{font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px}
+
+/* County tabs */
+.county-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.county-tab{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 10px;cursor:pointer;text-align:center;transition:all .2s}
+.county-tab:hover{border-color:rgba(240,192,64,.3)}
+.county-tab.active{border-color:var(--accent);background:rgba(240,192,64,.07)}
+.ct-name{font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text)}
+.county-tab.active .ct-name{color:var(--accent)}
+.ct-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.ct-arv{font-size:10px;color:var(--accent2);margin-top:1px}
+
+/* Market info bar */
+.mib{display:flex;gap:16px;flex-wrap:wrap;background:var(--surface2);border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11px}
+.mib-item{display:flex;flex-direction:column;gap:1px}
+.mib-label{color:var(--muted)}
+.mib-val{color:var(--accent);font-weight:500}
+
+/* Filters */
+.filter-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.field input,.field select{background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px;transition:border-color .2s}
+.field input:focus,.field select:focus{outline:none;border-color:rgba(240,192,64,.4)}
+.field input::placeholder{color:var(--muted)}
+
+/* Buttons */
+.btn-primary{width:100%;padding:13px;background:var(--accent);color:#0f1117;font-family:var(--font-head);font-size:14px;font-weight:800;border:none;border-radius:6px;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+.btn-primary:hover{background:#f5d060;transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* Loading */
+.loading{display:none;text-align:center;padding:36px}
+.loading.show{display:block}
+.spinner{display:inline-block;width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-sub{color:var(--muted);font-size:12px}
+.load-step{color:var(--accent);font-size:11px;margin-top:6px;min-height:18px}
+
+/* Listings */
+.results-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.results-count{font-family:var(--font-head);font-size:12px;color:var(--muted)}
+.results-count span{color:var(--accent2)}
+.source-badge{font-size:10px;padding:3px 8px;border-radius:3px}
+.source-live{background:rgba(74,240,160,.1);color:var(--accent2)}
+.source-demo{background:rgba(240,192,64,.1);color:var(--accent)}
+
+.listing-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;transition:all .2s}
+.listing-card:hover{border-color:rgba(240,192,64,.35)}
+.lc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.lc-addr{font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
+.lc-price{font-family:var(--font-head);font-size:18px;font-weight:800;color:var(--accent);text-align:right}
+.lc-zest{font-size:10px;color:var(--muted);text-align:right;margin-top:2px}
+.lc-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:8px}
+.lc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px}
+.tag-green{background:rgba(74,240,160,.12);color:var(--accent2)}
+.tag-yellow{background:rgba(240,192,64,.12);color:var(--accent)}
+.tag-red{background:rgba(240,80,80,.12);color:var(--danger)}
+.tag-blue{background:rgba(64,160,240,.12);color:#70b8f0}
+.tag-gray{background:rgba(255,255,255,.06);color:var(--muted)}
+.btn-analyze{width:100%;padding:9px;background:transparent;border:1px solid rgba(240,192,64,.4);color:var(--accent);font-family:var(--font-head);font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;transition:all .2s}
+.btn-analyze:hover{background:var(--accent);color:#0f1117}
+
+/* Analysis Result */
+.analysis-panel{display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
+.analysis-panel.show{display:block}
+.back-btn{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font-mono);font-size:11px;padding:5px 12px;border-radius:4px;cursor:pointer;margin-bottom:14px}
+.back-btn:hover{border-color:rgba(240,192,64,.3);color:var(--accent)}
+.score-bar{display:flex;align-items:center;gap:16px;background:var(--surface2);border-radius:6px;padding:16px;margin-bottom:12px}
+.score-circle{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;flex-shrink:0;border:2px solid var(--accent)}
+.score-num{font-family:var(--font-head);font-size:26px;font-weight:800;line-height:1}
+.score-lbl{font-size:9px;color:var(--muted)}
+.verdict-tag{display:inline-block;padding:4px 12px;border-radius:4px;font-family:var(--font-head);font-size:13px;font-weight:700;margin-bottom:6px}
+.verdict-go{background:rgba(74,240,160,.15);color:var(--accent2)}
+.verdict-nogo{background:rgba(240,80,80,.15);color:var(--danger)}
+.verdict-maybe{background:rgba(240,192,64,.15);color:var(--accent)}
+.verdict-desc{color:var(--muted);font-size:12px;line-height:1.5}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.metric{background:var(--surface2);border-radius:6px;padding:12px;border-left:2px solid var(--border)}
+.metric.pos{border-left-color:var(--accent2)}
+.metric.warn{border-left-color:var(--accent)}
+.metric.neg{border-left-color:var(--danger)}
+.m-label{font-size:10px;color:var(--muted);margin-bottom:3px}
+.m-val{font-family:var(--font-head);font-size:16px;font-weight:700}
+.m-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.reno-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.reno-item:last-child{border-bottom:none}
+.reno-name{font-size:12px;color:var(--muted);min-width:140px}
+.reno-bar-wrap{flex:1;margin:0 10px;height:3px;background:var(--border);border-radius:2px}
+.reno-bar{height:3px;border-radius:2px;background:var(--accent)}
+.reno-cost{font-size:12px;color:var(--text);min-width:60px;text-align:right}
+.reno-total-row{display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:1px solid var(--border)}
+.comps-list{display:flex;flex-direction:column;gap:7px}
+.comp-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--surface);border-radius:5px;border:1px solid var(--border)}
+.comp-price{font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text)}
+.err-box{background:rgba(240,80,80,.08);border:1px solid rgba(240,80,80,.2);border-radius:6px;padding:12px;color:var(--danger);font-size:12px;display:none;margin-bottom:10px}
+.err-box.show{display:block}
+.disclaimer{color:var(--muted);font-size:10px;line-height:1.6;padding:10px;background:rgba(255,255,255,.02);border-radius:4px;margin-top:12px}
+
+/* Submarket pills */
+.sm-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.sm-pill{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 9px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s}
+.sm-pill:hover{border-color:rgba(240,192,64,.3);color:var(--text)}
+.sm-pill.active{border-color:var(--accent2);color:var(--accent2);background:rgba(74,240,160,.06)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>FLIP ANALYZER</h1>
+    <span style="color:var(--muted);font-size:11px">Tampa Bay Pro</span>
+    <div class="badge"><span class="dot"></span> Pinellas · Hillsborough · Pasco</div>
+  </div>
+
+  <!-- API CONFIG -->
+  <div class="config-panel">
+    <div class="config-title">⚡ API-Konfiguration</div>
+    <div class="config-grid" style="grid-template-columns:1fr auto">
+      <div class="config-field">
+        <label>Anthropic API Key (für KI-Analyse)</label>
+        <input type="password" id="anthropic-key" placeholder="sk-ant-..." autocomplete="off">
+      </div>
+      <button class="btn-save" onclick="saveConfig()">Speichern</button>
+    </div>
+    <div class="config-status" id="config-status"></div>
+    <div class="config-hint">
+      🟢 <strong>Redfin-Daten:</strong> kein Key nötig — Listings werden direkt geladen ·
+      Anthropic Key für KI-Analyse: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> ·
+      Ohne Anthropic Key: Listings sichtbar, aber keine Vollanalyse möglich
+    </div>
+  </div>
+
+  <!-- COUNTY SELECTOR -->
+  <div class="section">
+    <div class="slabel">01 — County & Suchfilter</div>
+    <div class="county-tabs">
+      <div class="county-tab active" id="ctab-pinellas" onclick="selectCounty('pinellas')">
+        <div class="ct-name">Pinellas</div>
+        <div class="ct-sub">St. Pete · Clearwater · Largo</div>
+        <div class="ct-arv">ARV $200–265/sqft</div>
+      </div>
+      <div class="county-tab" id="ctab-hillsborough" onclick="selectCounty('hillsborough')">
+        <div class="ct-name">Hillsborough</div>
+        <div class="ct-sub">Tampa · Brandon · Riverview</div>
+        <div class="ct-arv">ARV $215–280/sqft</div>
+      </div>
+      <div class="county-tab" id="ctab-pasco" onclick="selectCounty('pasco')">
+        <div class="ct-name">Pasco</div>
+        <div class="ct-sub">Wesley Chapel · NPR · Holiday</div>
+        <div class="ct-arv">ARV $175–225/sqft</div>
+      </div>
+    </div>
+
+    <!-- Submarket Pills -->
+    <div class="sm-row" id="sm-row"></div>
+
+    <!-- Market Info -->
+    <div class="mib" id="mib"></div>
+
+    <!-- Filters -->
+    <div class="filter-row">
+      <div class="field">
+        <label>Min. Preis ($)</label>
+        <input type="number" id="f-min" value="150000" placeholder="150000">
+      </div>
+      <div class="field">
+        <label>Max. Preis ($)</label>
+        <input type="number" id="f-max" value="420000" placeholder="420000">
+      </div>
+      <div class="field">
+        <label>Min. Beds</label>
+        <select id="f-beds">
+          <option value="2">2+</option>
+          <option value="3" selected>3+</option>
+          <option value="4">4+</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Max. Days on Market</label>
+        <input type="number" id="f-dom" value="90" placeholder="90">
+      </div>
+    </div>
+    <div class="err-box" id="search-err"></div>
+    <button class="btn-primary" id="search-btn" onclick="doSearch()">ZILLOW DURCHSUCHEN →</button>
+  </div>
+
+  <!-- LOADING SEARCH -->
+  <div class="loading" id="search-loading">
+    <div class="spinner"></div>
+    <div class="load-sub">Zillow wird durchsucht...</div>
+    <div class="load-step" id="search-step"></div>
+  </div>
+
+  <!-- LISTINGS -->
+  <div id="listings-wrap" style="display:none">
+    <div class="results-bar">
+      <div class="results-count">Gefunden: <span id="listing-count">0</span> Objekte</div>
+      <span class="source-badge" id="source-badge"></span>
+    </div>
+    <div id="listings-list"></div>
+  </div>
+
+  <!-- LOADING ANALYSIS -->
+  <div class="loading" id="analysis-loading">
+    <div class="spinner"></div>
+    <div class="load-sub">KI analysiert Deal...</div>
+    <div class="load-step" id="analysis-step"></div>
+  </div>
+
+  <!-- ANALYSIS RESULT -->
+  <div class="analysis-panel" id="analysis-panel">
+    <button class="back-btn" onclick="backToListings()">← Zurück zur Übersicht</button>
+    <div id="analysis-content"></div>
+  </div>
+
+</div>
+
+<script>
+const COUNTIES = {
+  pinellas:     {name:'Pinellas County',medianPrice:381000,medianSqft:220,arvLow:200,arvHigh:265,avgDOM:16,belowAsk:55,yoy:'+5.3%',submarkets:['St. Petersburg','Clearwater','Largo','Dunedin','Pinellas Park','Safety Harbor','Tarpon Springs','Belleair','Seminole']},
+  hillsborough: {name:'Hillsborough County',medianPrice:408000,medianSqft:232,arvLow:215,arvHigh:280,avgDOM:52,belowAsk:58,yoy:'+1.9%',submarkets:['South Tampa','North Tampa','Brandon','Riverview','Valrico','Plant City','Westchase','Carrollwood','Temple Terrace']},
+  pasco:        {name:'Pasco County',medianPrice:350000,medianSqft:194,arvLow:175,arvHigh:225,avgDOM:69,belowAsk:63,yoy:'+2.0%',submarkets:['Wesley Chapel','Land O Lakes','New Port Richey','Port Richey','Holiday','Zephyrhills','Dade City','San Antonio FL']}
+};
+
+let county = 'pinellas';
+let submarket = '';
+let listings  = [];
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.onload = async () => {
+  renderSubmarkets();
+  renderMIB();
+  try {
+    const r = await fetch('/api/config');
+    const d = await r.json();
+    updateStatusBadges(d.anthropic_configured);
+  } catch(e) {}
+};
+
+function updateStatusBadges(anth) {
+  document.getElementById('config-status').innerHTML =
+    `<span class="status-item status-ok">✓ Redfin (kein Key nötig)</span>
+     <span class="status-item ${anth?'status-ok':'status-err'}">${anth?'✓':'✗'} Anthropic KI</span>`;
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+async function saveConfig() {
+  const ak = document.getElementById('anthropic-key').value.trim();
+  try {
+    const r = await fetch('/api/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({anthropic_key: ak})
+    });
+    const d = await r.json();
+    updateStatusBadges(d.anthropic);
+  } catch(e) { console.error(e); }
+}
+
+// ── County / Submarket ────────────────────────────────────────────────────────
+function selectCounty(c) {
+  county = c; submarket = '';
+  ['pinellas','hillsborough','pasco'].forEach(x =>
+    document.getElementById('ctab-'+x).classList.toggle('active', x===c));
+  renderSubmarkets();
+  renderMIB();
+  document.getElementById('listings-wrap').style.display = 'none';
+  document.getElementById('analysis-panel').classList.remove('show');
+}
+
+function renderSubmarkets() {
+  const sm = COUNTIES[county].submarkets;
+  document.getElementById('sm-row').innerHTML = sm.map(s =>
+    `<div class="sm-pill${submarket===s?' active':''}" onclick="toggleSubmarket('${s}')">${s}</div>`
+  ).join('');
+}
+
+function toggleSubmarket(s) {
+  submarket = submarket === s ? '' : s;
+  renderSubmarkets();
+}
+
+function renderMIB() {
+  const c = COUNTIES[county];
+  document.getElementById('mib').innerHTML = [
+    ['Median Preis', '$'+c.medianPrice.toLocaleString('de-DE')],
+    ['$/sqft Median', '$'+c.medianSqft],
+    ['ARV-Spanne', '$'+c.arvLow+'–$'+c.arvHigh+'/sqft'],
+    ['Ø DOM', c.avgDOM+' Tage'],
+    ['Unter Listenpreis', c.belowAsk+'%'],
+    ['YoY', c.yoy],
+  ].map(([l,v]) => `<div class="mib-item"><span class="mib-label">${l}</span><span class="mib-val">${v}</span></div>`).join('');
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+const SEARCH_STEPS = ['Verbindung wird hergestellt...','Zillow-Datenbank wird abgefragt...','Listings werden gefiltert...','Ergebnisse werden aufbereitet...'];
+let ssIdx = 0, ssTimer;
+
+async function doSearch() {
+  document.getElementById('search-err').classList.remove('show');
+  document.getElementById('listings-wrap').style.display = 'none';
+  document.getElementById('analysis-panel').classList.remove('show');
+  document.getElementById('search-loading').classList.add('show');
+  document.getElementById('search-btn').disabled = true;
+  ssIdx = 0;
+  ssTimer = setInterval(() => {
+    document.getElementById('search-step').textContent = SEARCH_STEPS[ssIdx % SEARCH_STEPS.length];
+    ssIdx++;
+  }, 1800);
+
+  try {
+    const resp = await fetch('/api/search', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        county,
+        min_price: parseInt(document.getElementById('f-min').value) || 100000,
+        max_price: parseInt(document.getElementById('f-max').value) || 500000,
+        min_beds:  parseInt(document.getElementById('f-beds').value) || 3,
+        max_dom:   parseInt(document.getElementById('f-dom').value) || 90,
+        submarket
+      })
+    });
+    const data = await resp.json();
+    listings = data.results || [];
+    clearInterval(ssTimer);
+    document.getElementById('search-loading').classList.remove('show');
+    document.getElementById('search-btn').disabled = false;
+    renderListings(listings, data.source, data.warning);
+  } catch(e) {
+    clearInterval(ssTimer);
+    document.getElementById('search-loading').classList.remove('show');
+    document.getElementById('search-btn').disabled = false;
+    const eb = document.getElementById('search-err');
+    eb.textContent = 'Verbindungsfehler: Bitte prüfen Sie ob der Server läuft (python server.py).';
+    eb.classList.add('show');
+  }
+}
+
+function renderListings(items, source, warning) {
+  document.getElementById('listing-count').textContent = items.length;
+  const sb = document.getElementById('source-badge');
+  sb.textContent = source === 'zillow_live' ? '✓ Live Zillow-Daten' : '⚡ Demo-Modus';
+  sb.className = 'source-badge ' + (source === 'zillow_live' ? 'source-live' : 'source-demo');
+
+  const c = COUNTIES[county];
+  document.getElementById('listings-list').innerHTML = items.map((l, i) => {
+    const arv     = Math.round((l.sqft||1200) * c.medianSqft * (l.year_built < 1975 ? 0.95 : l.year_built < 1995 ? 1.0 : 1.05));
+    const maxBuy  = Math.round(arv * 0.7 - 25000);
+    const delta   = l.price - maxBuy;
+    const dOk     = delta <= 0;
+    const score   = Math.min(100, Math.max(0, Math.round(
+      60 + (l.zestimate > 0 ? (l.zestimate - l.price) / l.price * 60 : 10)
+         - (l.year_built < 1970 ? 8 : 0)
+         + (l.dom > 60 ? 5 : 0)
+    )));
+    const sc = score >= 70 ? '#4af0a0' : score >= 50 ? '#f0c040' : '#f05050';
+    return `
+    <div class="listing-card">
+      <div class="lc-top">
+        <div style="flex:1;margin-right:12px">
+          <div class="lc-addr">${l.address}</div>
+          <div class="lc-meta" style="margin-top:5px">
+            <span>${l.beds}bd / ${l.baths}ba</span>
+            ${l.sqft ? '<span>'+l.sqft.toLocaleString('de-DE')+' sqft</span>' : ''}
+            ${l.year_built ? '<span>Bj. '+l.year_built+'</span>' : ''}
+            ${l.price_sqft ? '<span>$'+l.price_sqft+'/sqft</span>' : ''}
+          </div>
+        </div>
+        <div>
+          <div class="lc-price">${fmt(l.price)}</div>
+          ${l.zestimate ? '<div class="lc-zest">Zestimate: '+fmt(l.zestimate)+'</div>' : ''}
+        </div>
+      </div>
+      <div class="lc-tags">
+        <span class="tag tag-yellow">ARV ~${fmt(arv)}</span>
+        <span class="tag tag-yellow">Max: ${fmt(maxBuy)}</span>
+        <span class="tag ${dOk?'tag-green':'tag-red'}">${dOk ? fmt(Math.abs(delta))+' unter Max' : fmt(delta)+' über Max'}</span>
+        <span class="tag ${l.dom>60?'tag-green':'tag-blue'}">${l.dom} Tage on market</span>
+        <span class="tag tag-gray" style="color:${sc}">Score ~${score}</span>
+        ${l.zillow_url ? '<a href="'+l.zillow_url+'" target="_blank" class="tag tag-blue" style="text-decoration:none">↗ Zillow</a>' : ''}
+      </div>
+      <button class="btn-analyze" onclick="doAnalyze(${i})">→ VOLLANALYSE MIT KI STARTEN</button>
+    </div>`;
+  }).join('');
+  document.getElementById('listings-wrap').style.display = 'block';
+}
+
+// ── Analyze ───────────────────────────────────────────────────────────────────
+const ANALYSIS_STEPS = ['Marktdaten werden geladen...','Vergleichsobjekte werden analysiert...','Renovierungskosten werden geschätzt...','ARV & Deal-Score werden berechnet...','Bericht wird erstellt...'];
+let asIdx = 0, asTimer;
+
+async function doAnalyze(i) {
+  const listing = listings[i];
+  document.getElementById('listings-wrap').style.display = 'none';
+  document.getElementById('analysis-panel').classList.remove('show');
+  document.getElementById('analysis-loading').classList.add('show');
+  asIdx = 0;
+  asTimer = setInterval(() => {
+    document.getElementById('analysis-step').textContent = ANALYSIS_STEPS[asIdx % ANALYSIS_STEPS.length];
+    asIdx++;
+  }, 2000);
+
+  try {
+    const resp = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({listing, county_key: county})
+    });
+    const data = await resp.json();
+    clearInterval(asTimer);
+    document.getElementById('analysis-loading').classList.remove('show');
+    if(data.error) {
+      alert('Analysefehler: ' + data.error);
+      document.getElementById('listings-wrap').style.display = 'block';
+    } else {
+      renderAnalysis(data, listing);
+    }
+  } catch(e) {
+    clearInterval(asTimer);
+    document.getElementById('analysis-loading').classList.remove('show');
+    document.getElementById('listings-wrap').style.display = 'block';
+    alert('Verbindungsfehler bei Analyse.');
+  }
+}
+
+function backToListings() {
+  document.getElementById('analysis-panel').classList.remove('show');
+  document.getElementById('listings-wrap').style.display = 'block';
+}
+
+function renderAnalysis(r, l) {
+  const c = COUNTIES[county];
+  const vc = r.verdict==='GO'?'verdict-go':r.verdict==='NO-GO'?'verdict-nogo':'verdict-maybe';
+  const sc = r.deal_score>=70?'var(--accent2)':r.deal_score>=50?'var(--accent)':'var(--danger)';
+  const dOk = r.price_delta <= 0;
+  const renoMax = Math.max(...r.renovation_items.map(x=>x.cost), 1);
+
+  const renoHTML = r.renovation_items.map(item => {
+    const pct = Math.round(item.cost/renoMax*100);
+    const tc = item.priority==='MUSS'?'tag-red':item.priority==='SOLL'?'tag-yellow':'tag-green';
+    return `<div class="reno-item">
+      <span class="reno-name">${item.name} <span class="tag ${tc}" style="font-size:9px">${item.priority}</span></span>
+      <div class="reno-bar-wrap"><div class="reno-bar" style="width:${pct}%"></div></div>
+      <span class="reno-cost">${fmt(item.cost)}</span>
+    </div>`;
+  }).join('');
+
+  const compsHTML = r.comps.map(c => `
+    <div class="comp-item">
+      <div>
+        <div style="font-size:12px;color:var(--text)">${c.address}</div>
+        <div style="font-size:10px;color:var(--muted)">${c.sqft} sqft · ${c.beds_baths} · vor ${c.days_ago} Tagen</div>
+      </div>
+      <div style="text-align:right">
+        <div class="comp-price">${fmt(c.sale_price)}</div>
+        <div style="font-size:10px;color:var(--muted)">${c.sqft?fmt(Math.round(c.sale_price/c.sqft))+'/sqft':''}</div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('analysis-content').innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-family:var(--font-head);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">${c.name}</div>
+      <div style="font-size:13px;color:var(--text);font-weight:500">${l.address}</div>
+    </div>
+
+    <div class="score-bar">
+      <div class="score-circle" style="border-color:${sc}">
+        <div class="score-num" style="color:${sc}">${r.deal_score}</div>
+        <div class="score-lbl">SCORE</div>
+      </div>
+      <div>
+        <div class="verdict-tag ${vc}">${r.verdict}</div>
+        <div class="verdict-desc">${r.verdict_reason}</div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric pos"><div class="m-label">ARV</div><div class="m-val" style="color:var(--accent2)">${fmt(r.arv)}</div><div class="m-sub">${fmt(r.arv_per_sqft||0)}/sqft</div></div>
+      <div class="metric warn"><div class="m-label">Max. Kaufpreis</div><div class="m-val" style="color:var(--accent)">${fmt(r.max_purchase_price)}</div><div class="m-sub">70%-Regel</div></div>
+      <div class="metric ${dOk?'pos':'neg'}"><div class="m-label">Preis-Delta</div><div class="m-val" style="color:${dOk?'var(--accent2)':'var(--danger)'}">${dOk?fmt(Math.abs(r.price_delta))+' unter':fmt(r.price_delta)+' über'}</div><div class="m-sub">Angebot: ${fmt(l.price)}</div></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Renovierung</div><div class="m-val">${fmt(r.renovation_total)}</div><div class="m-sub">Schätzung</div></div>
+      <div class="metric"><div class="m-label">Halte + Closing</div><div class="m-val">${fmt((r.holding_costs||0)+(r.closing_costs||0))}</div><div class="m-sub">Nebenkosten</div></div>
+      <div class="metric ${r.roi_percent>=15?'pos':r.roi_percent>=8?'warn':'neg'}"><div class="m-label">ROI / Gewinn</div><div class="m-val" style="color:${r.roi_percent>=15?'var(--accent2)':r.roi_percent>=8?'var(--accent)':'var(--danger)'}">${Math.round(r.roi_percent)}%</div><div class="m-sub">${fmt(r.estimated_profit)}</div></div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:6px;padding:14px;margin-bottom:12px">
+      <div style="font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Renovierungsplan</div>
+      ${renoHTML}
+      <div class="reno-total-row">
+        <span style="color:var(--muted)">Gesamt</span>
+        <span style="font-family:var(--font-head);font-weight:700">${fmt(r.renovation_total)}</span>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:6px;padding:14px;margin-bottom:12px">
+      <div style="font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Vergleichsobjekte — ${c.name}</div>
+      <div class="comps-list">${compsHTML}</div>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">${r.market_insights}</div>
+    </div>
+
+    ${r.risk_flags?.length || r.opportunities?.length ? `
+    <div style="background:var(--surface2);border-radius:6px;padding:14px;margin-bottom:12px">
+      <div style="font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Risiken & Chancen</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
+        <div>${(r.risk_flags||[]).map(f=>`<div style="color:var(--danger);margin-bottom:5px">⚠ ${f}</div>`).join('')}</div>
+        <div>${(r.opportunities||[]).map(o=>`<div style="color:var(--accent2);margin-bottom:5px">✓ ${o}</div>`).join('')}</div>
+      </div>
+    </div>` : ''}
+
+    <div class="disclaimer">⚠ KI-gestützte Schätzung (Q1 2026). Keine Kaufempfehlung. Vor Entscheidungen: vor-Ort-Besichtigung, professionelle Begutachtung und aktuellen MLS-Comps-Report einholen. Zillow-Daten via RapidAPI · Analyse via Claude AI · Marktdaten: Redfin, Zillow ZHVI, Barrett Henry 2026.</div>
+  `;
+
+  document.getElementById('analysis-panel').classList.add('show');
+  document.getElementById('analysis-panel').scrollIntoView({behavior:'smooth'});
+}
+
+function fmt(n){return'$'+Math.round(n).toLocaleString('de-DE')}
+</script>
+</body>
+</html>
