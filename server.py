@@ -17,6 +17,7 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
+RAPIDAPI_KEY   = os.environ.get("RAPIDAPI_KEY", "")
 
 def get_anthropic_key():
     """Liest den API-Key zuerst aus der Env-Variable, dann aus dem globalen Fallback."""
@@ -129,17 +130,108 @@ def search_listings():
     if not county:
         return jsonify({"error": "Unbekannter County"}), 400
 
+    rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
+
+    if rapidapi_key:
+        try:
+            listings = _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, rapidapi_key)
+            if listings:
+                return jsonify({"source": "zillow_live", "results": listings})
+        except Exception as e:
+            print(f"RapidAPI Fehler: {e}")
+
+    # Fallback: Redfin
     try:
         listings = _fetch_redfin(county, min_price, max_price, min_beds, max_dom)
         if listings:
             return jsonify({"source": "redfin_live", "results": listings})
-        else:
-            return jsonify({"source": "demo", "results": _demo_listings(county_key),
-                            "warning": "Keine Treffer — Demo-Daten werden angezeigt."})
     except Exception as e:
         print(f"Redfin Fehler: {e}")
-        return jsonify({"source": "demo", "results": _demo_listings(county_key),
-                        "warning": f"Redfin nicht erreichbar: {e}"})
+
+    return jsonify({"source": "demo", "results": _demo_listings(county_key),
+                    "warning": "Keine Live-Daten verfügbar — Demo-Modus."})
+
+
+def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
+    """Ruft Listings über RapidAPI Real-Time Real-Estate Data ab."""
+
+    # Determine city/state from county
+    location_map = {
+        "pinellas":     "Pinellas County, FL",
+        "hillsborough": "Hillsborough County, FL",
+        "pasco":        "Pasco County, FL"
+    }
+    county_key = [k for k, v in COUNTY_CONFIG.items() if v == county][0]
+    location   = location_map.get(county_key, "Pinellas County, FL")
+
+    url = "https://real-time-real-estate-data-mega.p.rapidapi.com/search-properties"
+    params = {
+        "location":     location,
+        "listing_type": "for_sale",
+        "min_price":    str(min_price),
+        "max_price":    str(max_price),
+        "beds_min":     str(min_beds),
+        "home_type":    "Single Family",
+        "limit":        "20"
+    }
+    headers = {
+        "x-rapidapi-host": "real-time-real-estate-data-mega.p.rapidapi.com",
+        "x-rapidapi-key":  api_key
+    }
+
+    resp = requests.get(url, headers=headers, params=params, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()
+
+    homes = data.get("data", data.get("properties", data.get("results", [])))
+    if isinstance(homes, dict):
+        homes = homes.get("results", homes.get("properties", []))
+
+    listings = []
+    for h in homes:
+        try:
+            price     = h.get("price", h.get("list_price", 0))
+            sqft      = h.get("sqft", h.get("living_area", h.get("square_feet", 0)))
+            beds      = h.get("beds", h.get("bedrooms", 0))
+            baths     = h.get("baths", h.get("bathrooms", 0))
+            year      = h.get("year_built", 0)
+            dom       = h.get("days_on_market", h.get("dom", 0))
+            address   = h.get("full_address", h.get("address", {
+                "line": h.get("street_address",""),
+                "city": h.get("city",""),
+                "state": h.get("state","FL"),
+                "postal_code": h.get("zip_code","")
+            }))
+            if isinstance(address, dict):
+                address = f"{address.get('line', address.get('street',''))}, {address.get('city','')}, {address.get('state','FL')} {address.get('postal_code', address.get('zip',''))}"
+            url_prop = h.get("property_url", h.get("url", ""))
+
+            price = int(price) if price else 0
+            sqft  = int(sqft)  if sqft  else 0
+            if not price or not sqft:
+                continue
+            if dom and int(dom) > max_dom:
+                continue
+
+            listings.append({
+                "address":    address or "Adresse nicht verfügbar",
+                "price":      price,
+                "beds":       int(beds)   if beds  else 0,
+                "baths":      float(baths) if baths else 0,
+                "sqft":       sqft,
+                "year_built": int(year) if year else 0,
+                "dom":        int(dom)  if dom  else 0,
+                "zestimate":  0,
+                "price_sqft": round(price / sqft) if sqft else 0,
+                "county":     county_key,
+                "listing_url": url_prop,
+                "source":     "zillow"
+            })
+        except Exception as e:
+            print(f"RapidAPI Parse-Fehler: {e}")
+            continue
+
+    return listings[:12]
 
 
 def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
