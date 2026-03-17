@@ -164,7 +164,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
     county_key = [k for k, v in COUNTY_CONFIG.items() if v == county][0]
     location   = location_map.get(county_key, "Pinellas County, FL")
 
-    url = "https://real-time-real-estate-data-mega.p.rapidapi.com/search"
+    url = "https://real-time-real-estate-data.p.rapidapi.com/search"
     params = {
         "location":     location,
         "home_status":  "FOR_SALE",
@@ -176,7 +176,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
         "home_type":    "SINGLE_FAMILY"
     }
     headers = {
-        "x-rapidapi-host": "real-time-real-estate-data-mega.p.rapidapi.com",
+        "x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
         "x-rapidapi-key":  api_key
     }
 
@@ -205,21 +205,20 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
     listings = []
     for h in homes:
         try:
-            price     = h.get("price", h.get("list_price", 0))
-            sqft      = h.get("sqft", h.get("living_area", h.get("square_feet", 0)))
-            beds      = h.get("beds", h.get("bedrooms", 0))
-            baths     = h.get("baths", h.get("bathrooms", 0))
-            year      = h.get("year_built", 0)
-            dom       = h.get("days_on_market", h.get("dom", 0))
-            address   = h.get("full_address", h.get("address", {
-                "line": h.get("street_address",""),
-                "city": h.get("city",""),
-                "state": h.get("state","FL"),
-                "postal_code": h.get("zip_code","")
-            }))
-            if isinstance(address, dict):
-                address = f"{address.get('line', address.get('street',''))}, {address.get('city','')}, {address.get('state','FL')} {address.get('postal_code', address.get('zip',''))}"
-            url_prop = h.get("property_url", h.get("url", ""))
+            price    = h.get("price", h.get("listPrice", 0))
+            sqft     = h.get("livingArea", h.get("sqft", h.get("square_feet", 0)))
+            beds     = h.get("bedrooms", h.get("beds", 0))
+            baths    = h.get("bathrooms", h.get("baths", 0))
+            year     = h.get("yearBuilt", h.get("year_built", 0))
+            dom      = h.get("daysOnZillow", h.get("days_on_market", h.get("dom", 0)))
+            street   = h.get("streetAddress", h.get("address", ""))
+            city     = h.get("city", "")
+            state    = h.get("state", "FL")
+            zipcode  = h.get("zipcode", h.get("zip_code", ""))
+            address  = f"{street}, {city}, {state} {zipcode}".strip(", ")
+            url_prop = h.get("url", h.get("property_url", ""))
+            if url_prop and not url_prop.startswith("http"):
+                url_prop = "https://www.zillow.com" + url_prop
 
             price = int(price) if price else 0
             sqft  = int(sqft)  if sqft  else 0
