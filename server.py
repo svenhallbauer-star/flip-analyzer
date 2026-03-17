@@ -18,6 +18,10 @@ CORS(app)
 
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
 
+def get_anthropic_key():
+    """Liest den API-Key zuerst aus der Env-Variable, dann aus dem globalen Fallback."""
+    return os.environ.get("ANTHROPIC_KEY", "") or ANTHROPIC_KEY
+
 COUNTY_CONFIG = {
     "pinellas": {
         "name": "Pinellas County, FL",
@@ -71,7 +75,7 @@ def index():
 @app.route("/api/config", methods=["GET"])
 def get_config():
     return jsonify({
-        "anthropic_configured": bool(ANTHROPIC_KEY),
+        "anthropic_configured": bool(get_anthropic_key()),
         "data_source": "redfin",
         "counties": list(COUNTY_CONFIG.keys())
     })
@@ -82,7 +86,8 @@ def set_config():
     data = request.json or {}
     if data.get("anthropic_key"):
         ANTHROPIC_KEY = data["anthropic_key"]
-    return jsonify({"ok": True, "anthropic": bool(ANTHROPIC_KEY)})
+        os.environ["ANTHROPIC_KEY"] = ANTHROPIC_KEY
+    return jsonify({"ok": True, "anthropic": bool(get_anthropic_key())})
 
 
 @app.route("/api/search", methods=["POST"])
@@ -218,14 +223,224 @@ def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
     return listings[:12]
 
 
-@app.route("/api/analyze", methods=["POST"])
+import base64
+import imaplib
+import email as email_lib
+from email.header import decode_header
+
+
+@app.route("/api/analyze-pdf", methods=["POST"])
+def analyze_pdf():
+    data       = request.json or {}
+    pdf_b64    = data.get("data", "")
+    filename   = data.get("filename", "dokument.pdf")
+    county_key = data.get("county_key", "pinellas")
+    county     = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
+
+    if not get_anthropic_key():
+        return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
+    if not pdf_b64:
+        return jsonify({"error": "Keine PDF-Daten erhalten."}), 400
+
+    prompt = f"""Analysiere dieses Immobilien-Dokument (Exposé / MLS-Sheet) für {county['name']}.
+
+Extrahiere alle verfügbaren Immobiliendaten und gib sie als JSON zurück.
+Wenn Daten fehlen, schätze vernünftige Werte basierend auf dem Markt.
+
+Antworte NUR mit validem JSON (kein Markdown):
+{{
+  "address": "<Straße, Stadt, State ZIP>",
+  "price": <Listenpreis als Zahl>,
+  "beds": <Schlafzimmer>,
+  "baths": <Bäder>,
+  "sqft": <Wohnfläche>,
+  "year_built": <Baujahr>,
+  "dom": <Days on Market oder 0>,
+  "price_sqft": <Preis pro sqft>,
+  "county": "{county_key}",
+  "listing_url": "<URL falls vorhanden, sonst leer>",
+  "source": "pdf",
+  "notes": "<wichtige Infos aus dem Dokument: Zustand, Besonderheiten, Flood Zone, etc.>",
+  "zestimate": 0
+}}"""
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": get_anthropic_key(),
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 1000,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_b64
+                            }
+                        },
+                        {"type": "text", "text": prompt}
+                    ]
+                }]
+            },
+            timeout=30
+        )
+        resp.raise_for_status()
+        raw = resp.json()["content"][0]["text"]
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        listing = json.loads(raw)
+        return jsonify({"listing": listing})
+    except Exception as e:
+        return jsonify({"error": f"PDF-Analyse fehlgeschlagen: {e}"}), 500
+
+
+@app.route("/api/analyze-email", methods=["POST"])
+def analyze_email():
+    data       = request.json or {}
+    email_text = data.get("email_text", "")
+    county_key = data.get("county_key", "pinellas")
+    county     = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
+
+    if not get_anthropic_key():
+        return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
+
+    prompt = f"""Analysiere diesen Email-Text von einem Makler oder einer Immobilien-Plattform.
+Extrahiere alle Immobilien-Listings die du findest.
+
+Markt: {county['name']} (ARV ${county['arv_low']}–${county['arv_high']}/sqft)
+
+Antworte NUR mit validem JSON (kein Markdown):
+{{
+  "listings": [
+    {{
+      "address": "<Adresse>",
+      "price": <Preis>,
+      "beds": <Beds>,
+      "baths": <Baths>,
+      "sqft": <sqft oder 0>,
+      "year_built": <Jahr oder 0>,
+      "dom": 0,
+      "price_sqft": <oder 0>,
+      "county": "{county_key}",
+      "listing_url": "<URL falls vorhanden>",
+      "source": "email",
+      "notes": "<Zusatzinfos>",
+      "zestimate": 0
+    }}
+  ]
+}}
+
+Email-Text:
+{email_text[:4000]}"""
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": get_anthropic_key(),
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 1500,
+                "system": "Du bist Immobilien-Daten-Extraktor. Antworte NUR mit validem JSON.",
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=30
+        )
+        resp.raise_for_status()
+        raw = resp.json()["content"][0]["text"]
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/scan-imap", methods=["POST"])
+def scan_imap():
+    data       = request.json or {}
+    host       = data.get("host", "imap.gmail.com")
+    port       = int(data.get("port", 993))
+    user       = data.get("user", "")
+    password   = data.get("password", "")
+    query      = data.get("query", "redfin.com OR zillow.com")
+    county_key = data.get("county_key", "pinellas")
+
+    if not user or not password:
+        return jsonify({"error": "Email und Passwort erforderlich."}), 400
+
+    try:
+        mail = imaplib.IMAP4_SSL(host, port)
+        mail.login(user, password)
+        mail.select("INBOX")
+
+        # Search last 30 days for real estate emails
+        _, msg_ids = mail.search(None, 'SINCE "01-Jan-2026"')
+        ids = msg_ids[0].split()[-20:]  # last 20 matching emails
+
+        email_texts = []
+        for mid in ids:
+            _, msg_data = mail.fetch(mid, "(RFC822)")
+            msg = email_lib.message_from_bytes(msg_data[0][1])
+            subject = decode_header(msg["Subject"] or "")[0][0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(errors="ignore")
+            sender  = msg.get("From", "")
+
+            # Filter by query keywords
+            keywords = [q.strip().lower() for q in query.replace(" OR ", "|").split("|")]
+            combined = (subject + sender).lower()
+            if not any(kw in combined for kw in keywords):
+                continue
+
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode(errors="ignore")[:2000]
+                        break
+            else:
+                body = msg.get_payload(decode=True).decode(errors="ignore")[:2000]
+
+            email_texts.append(f"Von: {sender}\nBetreff: {subject}\n\n{body}")
+
+        mail.logout()
+
+        if not email_texts:
+            return jsonify({"listings": [], "message": "Keine passenden Emails gefunden."})
+
+        # Analyze combined email content
+        combined_text = "\n\n---\n\n".join(email_texts[:5])
+        inner_resp = requests.post(
+            f"http://localhost:{os.environ.get('PORT', 5000)}/api/analyze-email",
+            json={"email_text": combined_text, "county_key": county_key},
+            timeout=30
+        )
+        return inner_resp.json()
+
+    except imaplib.IMAP4.error as e:
+        return jsonify({"error": f"IMAP-Fehler: {e}. Bitte App-Passwort prüfen."}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 def analyze_listing():
     data       = request.json or {}
     listing    = data.get("listing", {})
     county_key = data.get("county_key", "pinellas")
     county     = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
 
-    if not ANTHROPIC_KEY:
+    if not get_anthropic_key():
         return jsonify({"error": "Anthropic API-Key nicht konfiguriert. Bitte oben eintragen."}), 400
 
     from training_data import DEAL_1_CONDITION_AT_PURCHASE
@@ -311,7 +526,7 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
-                "x-api-key": ANTHROPIC_KEY,
+                "x-api-key": get_anthropic_key(),
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json"
             },
