@@ -434,6 +434,7 @@ def scan_imap():
 
 
 
+@app.route("/api/analyze", methods=["POST"])
 def analyze_listing():
     data       = request.json or {}
     listing    = data.get("listing", {})
