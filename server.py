@@ -290,7 +290,7 @@ Antworte NUR mit validem JSON (kein Markdown):
                     ]
                 }]
             },
-            timeout=30
+            timeout=55
         )
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"]
@@ -354,7 +354,7 @@ Email-Text:
                 "system": "Du bist Immobilien-Daten-Extraktor. Antworte NUR mit validem JSON.",
                 "messages": [{"role": "user", "content": prompt}]
             },
-            timeout=30
+            timeout=55
         )
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"]
@@ -423,7 +423,7 @@ def scan_imap():
         inner_resp = requests.post(
             f"http://localhost:{os.environ.get('PORT', 5000)}/api/analyze-email",
             json={"email_text": combined_text, "county_key": county_key},
-            timeout=30
+            timeout=55
         )
         return inner_resp.json()
 
@@ -536,7 +536,7 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
                 "system": "Du bist Fix-and-Flip Analyst Tampa Bay Florida. Antworte NUR mit validem JSON.",
                 "messages": [{"role": "user", "content": prompt}]
             },
-            timeout=30
+            timeout=55
         )
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"]

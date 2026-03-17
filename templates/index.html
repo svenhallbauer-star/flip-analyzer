@@ -561,14 +561,24 @@ async function doAnalyze(i) {
   }, 2000);
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55000);
     const resp = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({listing, county_key: county})
+      body: JSON.stringify({listing, county_key: county}),
+      signal: controller.signal
     });
-    const data = await resp.json();
+    clearTimeout(timeout);
     clearInterval(asTimer);
     document.getElementById('analysis-loading').classList.remove('show');
+    if(!resp.ok) {
+      const txt = await resp.text();
+      alert('Server-Fehler ' + resp.status + ': ' + txt.slice(0,300));
+      document.getElementById('listings-wrap').style.display = 'block';
+      return;
+    }
+    const data = await resp.json();
     if(data.error) {
       alert('Analysefehler: ' + data.error);
       document.getElementById('listings-wrap').style.display = 'block';
@@ -579,7 +589,11 @@ async function doAnalyze(i) {
     clearInterval(asTimer);
     document.getElementById('analysis-loading').classList.remove('show');
     document.getElementById('listings-wrap').style.display = 'block';
-    alert('Verbindungsfehler bei Analyse.');
+    if(e.name === 'AbortError') {
+      alert('Timeout: Analyse zu lange. Bitte nochmal versuchen.');
+    } else {
+      alert('Fehler: ' + e.message);
+    }
   }
 }
 
