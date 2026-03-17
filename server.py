@@ -164,15 +164,16 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
     county_key = [k for k, v in COUNTY_CONFIG.items() if v == county][0]
     location   = location_map.get(county_key, "Pinellas County, FL")
 
-    url = "https://real-time-real-estate-data-mega.p.rapidapi.com/search-properties"
+    url = "https://real-time-real-estate-data-mega.p.rapidapi.com/search"
     params = {
         "location":     location,
-        "listing_type": "for_sale",
+        "home_status":  "FOR_SALE",
+        "listing_type": "BY_AGENT",
+        "sort":         "DEFAULT",
         "min_price":    str(min_price),
         "max_price":    str(max_price),
         "beds_min":     str(min_beds),
-        "home_type":    "Single Family",
-        "limit":        "20"
+        "home_type":    "SINGLE_FAMILY"
     }
     headers = {
         "x-rapidapi-host": "real-time-real-estate-data-mega.p.rapidapi.com",
@@ -180,12 +181,26 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
     }
 
     resp = requests.get(url, headers=headers, params=params, timeout=20)
+    print(f"RapidAPI Status: {resp.status_code}")
+    print(f"RapidAPI Response: {resp.text[:500]}")
     resp.raise_for_status()
     data = resp.json()
 
-    homes = data.get("data", data.get("properties", data.get("results", [])))
-    if isinstance(homes, dict):
-        homes = homes.get("results", homes.get("properties", []))
+    # Try different response structures
+    homes = []
+    if isinstance(data, list):
+        homes = data
+    elif isinstance(data, dict):
+        for key in ["data", "results", "properties", "homes", "listings"]:
+            val = data.get(key)
+            if val and isinstance(val, list):
+                homes = val
+                break
+            elif val and isinstance(val, dict):
+                for k2 in ["results", "properties", "homes"]:
+                    if val.get(k2):
+                        homes = val[k2]
+                        break
 
     listings = []
     for h in homes:
