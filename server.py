@@ -66,6 +66,32 @@ REDFIN_HEADERS = {
     "Origin": "https://www.redfin.com"
 }
 
+def _anthropic_post(payload, timeout=55):
+    """Anthropic API call mit automatischem Retry bei 429."""
+    key = get_anthropic_key()
+    headers = {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    for attempt in range(3):
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=payload,
+            timeout=timeout
+        )
+        if resp.status_code == 429:
+            wait = 20 * (attempt + 1)  # 20s, 40s, 60s
+            print(f"Rate limit 429 — warte {wait}s (Versuch {attempt+1}/3)")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp
+    resp.raise_for_status()
+    return resp
+
+
 # ── Routen ─────────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -265,14 +291,7 @@ Antworte NUR mit validem JSON (kein Markdown):
 }}"""
 
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": get_anthropic_key(),
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
+        resp = _anthropic_post({
                 "model": "claude-sonnet-4-5",
                 "max_tokens": 1000,
                 "messages": [{
@@ -289,9 +308,7 @@ Antworte NUR mit validem JSON (kein Markdown):
                         {"type": "text", "text": prompt}
                     ]
                 }]
-            },
-            timeout=55
-        )
+            })
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"]
         raw = raw.replace("```json", "").replace("```", "").strip()
@@ -341,21 +358,12 @@ Email-Text:
 {email_text[:4000]}"""
 
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": get_anthropic_key(),
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
+        resp = _anthropic_post({
                 "model": "claude-sonnet-4-5",
                 "max_tokens": 1500,
                 "system": "Du bist Immobilien-Daten-Extraktor. Antworte NUR mit validem JSON.",
                 "messages": [{"role": "user", "content": prompt}]
-            },
-            timeout=55
-        )
+            })
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"]
         raw = raw.replace("```json", "").replace("```", "").strip()
@@ -524,21 +532,12 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
 }}"""
 
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": get_anthropic_key(),
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
+        resp = _anthropic_post({
                 "model": "claude-sonnet-4-5",
                 "max_tokens": 2000,
                 "system": "Du bist Fix-and-Flip Analyst Tampa Bay Florida. Antworte NUR mit validem JSON.",
                 "messages": [{"role": "user", "content": prompt}]
-            },
-            timeout=55
-        )
+            })
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"]
         raw = raw.replace("```json", "").replace("```", "").strip()
