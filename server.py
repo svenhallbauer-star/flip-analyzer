@@ -173,7 +173,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
         "min_price":    str(min_price),
         "max_price":    str(max_price),
         "beds_min":     str(min_beds),
-        "home_type":    "SINGLE_FAMILY"
+        "home_type":    "HOUSES"
     }
     headers = {
         "x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
