@@ -562,7 +562,7 @@ async function doAnalyze(i) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55000);
+    const timeout = setTimeout(() => controller.abort(), 120000);
     const resp = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -770,7 +770,7 @@ async function analyzePDFs() {
 
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 55000);
+          const timeout = setTimeout(() => controller.abort(), 120000);
           const ar = await fetch('/api/analyze', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
