@@ -730,15 +730,19 @@ function removePdf(i) {
 function showPdfErr(msg) {
   const eb = document.getElementById('pdf-err');
   eb.textContent = msg; eb.classList.add('show');
-  setTimeout(()=>eb.classList.remove('show'), 4000);
 }
 
 async function analyzePDFs() {
   if(!pdfFiles.length) return;
   const btn = document.getElementById('pdf-analyze-btn');
-  btn.disabled = true; btn.textContent = 'Wird analysiert...';
+  btn.disabled = true; btn.textContent = 'Schritt 1/2: PDF wird gelesen...';
+  document.getElementById('pdf-err').classList.remove('show');
 
   for(const f of pdfFiles) {
+    // Warn if PDF very large
+    if(f.size > 3 * 1024 * 1024) {
+      showPdfErr('⚠ PDF ist groß (' + (f.size/1024/1024).toFixed(1) + ' MB) — kann länger dauern oder Rate Limit erreichen. Bitte kleines PDF verwenden (<3 MB).');
+    }
     const base64 = await fileToBase64(f);
     try {
       const resp = await fetch('/api/analyze-pdf', {
@@ -747,14 +751,51 @@ async function analyzePDFs() {
         body: JSON.stringify({filename: f.name, data: base64, county_key: county})
       });
       const data = await resp.json();
-      if(data.error) { showPdfErr(data.error); continue; }
-      // If listing was extracted, trigger full analysis
+      if(data.error) { showPdfErr(data.error); btn.disabled = false; btn.textContent = 'PDF ANALYSIEREN →'; continue; }
+
       if(data.listing) {
+        // Step 2: directly run full KI analysis on extracted listing
+        btn.textContent = 'Schritt 2/2: KI-Analyse läuft...';
         listings.unshift(data.listing);
-        document.getElementById('listings-wrap').style.display = 'block';
-        document.getElementById('listing-count').textContent = listings.length;
-        renderListings(listings, 'pdf', null);
-        document.getElementById('listings-wrap').scrollIntoView({behavior:'smooth'});
+
+        // Show analysis loading
+        document.getElementById('listings-wrap').style.display = 'none';
+        document.getElementById('analysis-panel').classList.remove('show');
+        document.getElementById('analysis-loading').classList.add('show');
+        asIdx = 0;
+        asTimer = setInterval(() => {
+          document.getElementById('analysis-step').textContent = ANALYSIS_STEPS[asIdx % ANALYSIS_STEPS.length];
+          asIdx++;
+        }, 2000);
+
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 55000);
+          const ar = await fetch('/api/analyze', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({listing: data.listing, county_key: county}),
+            signal: controller.signal
+          });
+          clearTimeout(timeout);
+          clearInterval(asTimer);
+          document.getElementById('analysis-loading').classList.remove('show');
+          if(!ar.ok) {
+            const txt = await ar.text();
+            showPdfErr('Analyse-Fehler ' + ar.status + ': ' + txt.slice(0,200));
+          } else {
+            const result = await ar.json();
+            if(result.error) {
+              showPdfErr('Analyse-Fehler: ' + result.error);
+            } else {
+              renderAnalysis(result, data.listing);
+            }
+          }
+        } catch(e2) {
+          clearInterval(asTimer);
+          document.getElementById('analysis-loading').classList.remove('show');
+          showPdfErr('Fehler bei KI-Analyse: ' + e2.message);
+        }
       }
     } catch(e) { showPdfErr('Verbindungsfehler: ' + e.message); }
   }
