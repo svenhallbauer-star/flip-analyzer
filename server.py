@@ -316,7 +316,7 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
                 "content-type": "application/json"
             },
             json={
-                "model": "claude-sonnet-4-20250514",
+                "model": "claude-sonnet-4-5",
                 "max_tokens": 2000,
                 "system": "Du bist Fix-and-Flip Analyst Tampa Bay Florida. Antworte NUR mit validem JSON.",
                 "messages": [{"role": "user", "content": prompt}]
