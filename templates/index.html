@@ -613,7 +613,10 @@ function renderListings(items, source, warning) {
         </div>
       </div>
       <div style="padding:0 14px 12px">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px;padding:0 14px 12px">
         <button class="btn-analyze" onclick="doAnalyze(${i})">→ VOLLANALYSE MIT KI STARTEN</button>
+        ${l.photos && l.photos.length ? '<button class="btn-analyze" style="background:var(--blue-bg);border-color:var(--border2);color:var(--blue)" onclick="analyzeListingPhotos('+i+')">📸 ALLE '+l.photos.length+' FOTOS ANALYSIEREN</button>' : '<button class="btn-analyze" style="opacity:.4;cursor:default;border-color:var(--border)" disabled>Keine Fotos verfuegbar</button>'}
+      </div>
       </div>
     </div>`;
   }).join('');
@@ -826,6 +829,107 @@ async function deleteUser(username) {
   if(!confirm(`Benutzer "${username}" wirklich löschen?`)) return;
   await fetch(`/api/users/${username}`, {method:'DELETE'});
   loadUsers();
+}
+
+// ── Zillow Photo Analysis ────────────────────────────────────────────────────
+async function analyzeListingPhotos(i) {
+  const listing = listings[i];
+  if(!listing) return;
+
+  document.getElementById('listings-wrap').style.display = 'none';
+  document.getElementById('analysis-loading').classList.add('show');
+  document.getElementById('analysis-step').textContent = 'Zillow-Fotos werden geladen und analysiert...';
+
+  // Show progress
+  document.getElementById('analysis-step').textContent = 'Lade ' + (listing.photos||[]).length + ' Fotos herunter...';
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180000);
+    const resp = await fetch('/api/analyze-listing-photos', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({listing, county_key: county}),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    document.getElementById('analysis-loading').classList.remove('show');
+
+    const data = await resp.json();
+
+    if(data.no_photos || data.error) {
+      document.getElementById('listings-wrap').style.display = 'block';
+      alert(data.error || 'Keine Fotos verfuegbar.');
+      return;
+    }
+
+    // Show photo analysis results
+    const analyses = data.analyses || [];
+    const totalCost = data.total_est_cost || 0;
+
+    const analysesHTML = analyses.map((a, idx) => {
+      const sevColor = a.severity >= 4 ? 'var(--red)' : a.severity >= 3 ? 'var(--orange)' : 'var(--green)';
+      const sevClass = a.severity >= 4 ? 'tag-nogo' : a.severity >= 3 ? 'tag-maybe' : 'tag-go';
+      const simHTML = (a.similar||[]).map(s =>
+        `<span style="font-size:9px;background:var(--blue-bg);color:var(--blue);padding:2px 6px;border-radius:4px;margin-right:4px">${s.deal} ${s.sim}%</span>`
+      ).join('');
+      const thumbHTML = a.photo_url ? `<img src="${a.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;border:1px solid var(--border)" onerror="this.style.display='none'">` : '';
+      return `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            ${thumbHTML}
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <span style="font-weight:700;font-size:12px">${a.room_type}</span>
+                <span style="font-family:var(--font-head);font-size:15px;font-weight:900;color:var(--orange)">$${Math.round(a.est_cost).toLocaleString('de-DE')}</span>
+              </div>
+              <div style="display:flex;gap:5px;margin-bottom:5px">
+                <span class="tag ${sevClass}">Schwere ${a.severity}/5</span>
+                ${(a.damage_types||[]).map(d=>`<span class="tag tag-gray">${d}</span>`).join('')}
+              </div>
+              <div style="font-size:10px;color:var(--muted);line-height:1.5">${a.description}</div>
+              ${simHTML ? '<div style="margin-top:5px">'+simHTML+'</div>' : ''}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('analysis-content').innerHTML = `
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:3px">${data.address}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-family:var(--font-head);font-size:13px;font-weight:700">Foto-Analyse (${data.photos_analyzed} Bilder)</div>
+          ${data.rag_enabled ? '<span class="tag tag-blue">RAG aktiv</span>' : ''}
+        </div>
+      </div>
+      <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:12px;color:var(--muted);font-weight:600">${data.photos_analyzed} Fotos analysiert</div>
+          <div style="font-family:var(--font-head);font-size:24px;font-weight:900;color:var(--orange)">$${Math.round(totalCost).toLocaleString('de-DE')}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${analyses.filter(a=>a.severity>=4).length ? '<span class="tag tag-nogo">'+analyses.filter(a=>a.severity>=4).length+' kritisch</span>' : ''}
+          ${analyses.filter(a=>a.severity==3).length ? '<span class="tag tag-maybe">'+analyses.filter(a=>a.severity==3).length+' mittel</span>' : ''}
+          ${analyses.filter(a=>a.severity<=2).length ? '<span class="tag tag-go">'+analyses.filter(a=>a.severity<=2).length+' gut</span>' : ''}
+          ${data.rag_enabled ? '<span class="tag tag-blue">RAG aktiv</span>' : ''}
+        </div>
+      </div>
+      ${analysesHTML}
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn-analyze" onclick="backToListings()">← Zurueck zu Listings</button>
+        <button class="btn-analyze" style="background:var(--orange);color:#fff;border-color:var(--orange)" onclick="doAnalyze(${i})">→ Vollanalyse starten</button>
+      </div>
+      <div class="disclaimer">Kostenschaetzung basierend auf ${data.rag_enabled ? 'RAG-Vergleich mit echten Deals' : 'KI-Analyse ohne Referenzfaelle'}. Vor Kauf: professionelle Begutachtung einholen.</div>
+    `;
+
+    document.getElementById('analysis-panel').classList.add('show');
+    document.getElementById('analysis-panel').scrollIntoView({behavior:'smooth'});
+
+  } catch(e) {
+    document.getElementById('analysis-loading').classList.remove('show');
+    document.getElementById('listings-wrap').style.display = 'block';
+    alert(e.name === 'AbortError' ? 'Timeout -- bitte nochmal versuchen.' : 'Fehler: ' + e.message);
+  }
 }
 
 // ── RAG Image Analysis ───────────────────────────────────────────────────────
