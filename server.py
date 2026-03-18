@@ -5,19 +5,101 @@ Datenquelle: Redfin (kein API-Key nötig)
 Läuft lokal auf http://localhost:5000
 """
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session, redirect, url_for, render_template_string
 from training_data import get_training_context, get_full_training_context, RENOVATION_BENCHMARKS, ARV_BENCHMARKS
 from flask_cors import CORS
+from functools import wraps
 import requests
 import os
 import json
 import time
+import hashlib
+import secrets
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
-RAPIDAPI_KEY   = os.environ.get("RAPIDAPI_KEY", "")
+RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
+
+# ── Benutzer (aus Env-Variablen oder Defaults) ─────────────────────────────────
+def load_users():
+    """Lädt Benutzer aus USERS Env-Variable (JSON) oder nutzt Defaults."""
+    users_json = os.environ.get("USERS", "")
+    if users_json:
+        try:
+            return json.loads(users_json)
+        except:
+            pass
+    # Default: admin / flip2024
+    return {
+        "admin": {
+            "password_hash": hashlib.sha256("flip2024".encode()).hexdigest(),
+            "name": "Admin",
+            "role": "admin"
+        }
+    }
+
+def check_password(username, password):
+    users = load_users()
+    user = users.get(username)
+    if not user:
+        return False
+    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    return pw_hash == user.get("password_hash", "")
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            if request.is_json:
+                return jsonify({"error": "Nicht eingeloggt"}), 401
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated
+
+LOGIN_HTML = """<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flip Analyzer — Login</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1117;color:#e8e4dc;font-family:'DM Mono',monospace;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.login-box{background:#181c25;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:40px;width:100%;max-width:400px}
+h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#f0c040;margin-bottom:6px}
+.sub{font-size:11px;color:#7a7f8e;margin-bottom:28px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+label{font-size:10px;color:#7a7f8e;text-transform:uppercase;letter-spacing:.5px}
+input{background:#1e2330;border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:#e8e4dc;font-family:'DM Mono',monospace;font-size:13px;padding:10px 12px}
+input:focus{outline:none;border-color:rgba(240,192,64,.4)}
+.btn{width:100%;padding:13px;background:#f0c040;color:#0f1117;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;border:none;border-radius:6px;cursor:pointer;margin-top:8px}
+.btn:hover{background:#f5d060}
+.err{background:rgba(240,80,80,.1);border:1px solid rgba(240,80,80,.2);color:#f05050;border-radius:6px;padding:10px;font-size:12px;margin-bottom:14px;display:{% if error %}block{% else %}none{% endif %}}
+</style>
+</head>
+<body>
+<div class="login-box">
+  <h1>FLIP ANALYZER</h1>
+  <div class="sub">Tampa Bay Pro — Bitte einloggen</div>
+  <div class="err">{{ error }}</div>
+  <form method="POST" action="/login">
+    <div class="field">
+      <label>Benutzername</label>
+      <input type="text" name="username" placeholder="username" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label>Passwort</label>
+      <input type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="btn">EINLOGGEN →</button>
+  </form>
+</div>
+</body>
+</html>"""
 
 def get_anthropic_key():
     """Liest den API-Key zuerst aus der Env-Variable, dann aus dem globalen Fallback."""
@@ -93,13 +175,91 @@ def _anthropic_post(payload, timeout=55):
     return resp
 
 
+# ── Auth Routen ────────────────────────────────────────────────────────────────
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        if check_password(username, password):
+            session["logged_in"] = True
+            session["username"]  = username
+            users = load_users()
+            session["role"] = users.get(username, {}).get("role", "user")
+            session["name"] = users.get(username, {}).get("name", username)
+            return redirect("/")
+        return render_template_string(LOGIN_HTML, error="Benutzername oder Passwort falsch.")
+    if session.get("logged_in"):
+        return redirect("/")
+    return render_template_string(LOGIN_HTML, error="")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+@app.route("/api/me")
+@login_required
+def me():
+    return jsonify({
+        "username": session.get("username"),
+        "name":     session.get("name"),
+        "role":     session.get("role")
+    })
+
+@app.route("/api/users", methods=["GET"])
+@login_required
+def list_users():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Kein Zugriff"}), 403
+    users = load_users()
+    return jsonify([{"username": k, "name": v.get("name",""), "role": v.get("role","user")} for k,v in users.items()])
+
+@app.route("/api/users", methods=["POST"])
+@login_required
+def add_user():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data     = request.json or {}
+    username = data.get("username","").strip()
+    password = data.get("password","").strip()
+    name     = data.get("name", username)
+    role     = data.get("role", "user")
+    if not username or not password:
+        return jsonify({"error": "Benutzername und Passwort erforderlich"}), 400
+    users_json = os.environ.get("USERS", "")
+    users = json.loads(users_json) if users_json else load_users()
+    users[username] = {
+        "password_hash": hashlib.sha256(password.encode()).hexdigest(),
+        "name": name,
+        "role": role
+    }
+    os.environ["USERS"] = json.dumps(users)
+    return jsonify({"ok": True})
+
+@app.route("/api/users/<username>", methods=["DELETE"])
+@login_required
+def delete_user(username):
+    if session.get("role") != "admin":
+        return jsonify({"error": "Kein Zugriff"}), 403
+    if username == session.get("username"):
+        return jsonify({"error": "Eigenen Account nicht löschbar"}), 400
+    users_json = os.environ.get("USERS", "")
+    users = json.loads(users_json) if users_json else load_users()
+    users.pop(username, None)
+    os.environ["USERS"] = json.dumps(users)
+    return jsonify({"ok": True})
+
 # ── Routen ─────────────────────────────────────────────────────────────────────
 
 @app.route("/")
+@login_required
 def index():
     return send_from_directory("templates", "index.html")
 
 @app.route("/api/config", methods=["GET"])
+@login_required
 def get_config():
     return jsonify({
         "anthropic_configured": bool(get_anthropic_key()),
@@ -108,6 +268,7 @@ def get_config():
     })
 
 @app.route("/api/config", methods=["POST"])
+@login_required
 def set_config():
     global ANTHROPIC_KEY
     data = request.json or {}
@@ -118,6 +279,7 @@ def set_config():
 
 
 @app.route("/api/search", methods=["POST"])
+@login_required
 def search_listings():
     data       = request.json or {}
     county_key = data.get("county", "pinellas")
@@ -362,6 +524,7 @@ from email.header import decode_header
 
 
 @app.route("/api/analyze-pdf", methods=["POST"])
+@login_required
 def analyze_pdf():
     data       = request.json or {}
     pdf_b64    = data.get("data", "")
@@ -425,6 +588,7 @@ Antworte NUR mit validem JSON (kein Markdown):
 
 
 @app.route("/api/analyze-email", methods=["POST"])
+@login_required
 def analyze_email():
     data       = request.json or {}
     email_text = data.get("email_text", "")
@@ -480,6 +644,7 @@ Email-Text:
 
 
 @app.route("/api/scan-imap", methods=["POST"])
+@login_required
 def scan_imap():
     data       = request.json or {}
     host       = data.get("host", "imap.gmail.com")
@@ -549,6 +714,7 @@ def scan_imap():
 
 
 @app.route("/api/analyze", methods=["POST"])
+@login_required
 def analyze_listing():
     data       = request.json or {}
     listing    = data.get("listing", {})
