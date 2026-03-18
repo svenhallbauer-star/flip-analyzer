@@ -416,6 +416,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
                 "county":     county_key,
                 "listing_url": url_prop,
                 "photos":     photos[:25],
+                "zpid":       str(h.get("zpid", h.get("listingId", ""))),
                 "source":     "zillow"
             })
         except Exception as e:
@@ -850,29 +851,64 @@ def analyze_listing_photos():
     if not get_anthropic_key():
         return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
 
-    # Wenn keine Foto-URLs im Listing, versuche sie via RapidAPI zu holen
-    if not photos and listing.get("listing_url"):
-        try:
-            rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
-            if rapidapi_key:
-                zpid = listing.get("zpid", "")
-                if zpid:
-                    r = requests.get(
-                        "https://real-time-real-estate-data.p.rapidapi.com/property-details",
-                        headers={"x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
-                                 "x-rapidapi-key": rapidapi_key},
-                        params={"zpid": zpid},
-                        timeout=15
-                    )
-                    if r.ok:
-                        d = r.json().get("data", {})
-                        raw = d.get("carouselPhotos", d.get("photos", []))
-                        for p in raw:
-                            url = p.get("url","") if isinstance(p,dict) else p
-                            if url:
-                                photos.append(url)
-        except Exception as e:
-            print(f"Photo fetch error: {e}")
+    # Lade ALLE Fotos via Property Details API
+    rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
+    zpid = listing.get("zpid", "")
+    address = listing.get("address", "")
+
+    if rapidapi_key:
+        # Versuch 1: Property Details via zpid
+        if zpid:
+            try:
+                r = requests.get(
+                    "https://real-time-real-estate-data.p.rapidapi.com/property-details",
+                    headers={"x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
+                             "x-rapidapi-key": rapidapi_key},
+                    params={"zpid": zpid},
+                    timeout=20
+                )
+                print(f"Property details (zpid): {r.status_code}")
+                if r.ok:
+                    prop = r.json().get("data", r.json())
+                    for field in ["carouselPhotos", "responsivePhotos", "photos", "images"]:
+                        raw = prop.get(field, [])
+                        if raw:
+                            for p in raw:
+                                url = p.get("url", p.get("src", "")) if isinstance(p, dict) else str(p)
+                                if url and url.startswith("http"):
+                                    photos.append(url)
+                            print(f"  Got {len(photos)} photos from {field}")
+                            if photos:
+                                break
+            except Exception as e:
+                print(f"zpid lookup error: {e}")
+
+        # Versuch 2: Property by Address
+        if not photos and address:
+            try:
+                r = requests.get(
+                    "https://real-time-real-estate-data.p.rapidapi.com/property-by-address",
+                    headers={"x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
+                             "x-rapidapi-key": rapidapi_key},
+                    params={"address": address},
+                    timeout=20
+                )
+                print(f"Property by address: {r.status_code}")
+                if r.ok:
+                    prop = r.json().get("data", r.json())
+                    for field in ["carouselPhotos", "responsivePhotos", "photos"]:
+                        raw = prop.get(field, [])
+                        if raw:
+                            for p in raw:
+                                url = p.get("url", p.get("src", "")) if isinstance(p, dict) else str(p)
+                                if url and url.startswith("http"):
+                                    photos.append(url)
+                            if photos:
+                                break
+            except Exception as e:
+                print(f"Address lookup error: {e}")
+
+    print(f"Total photos to analyze: {len(photos)}")
 
     if not photos:
         return jsonify({"error": "Keine Fotos fuer dieses Listing verfuegbar. Bitte Bilder manuell im Import-Tab hochladen.", "no_photos": True}), 404
