@@ -382,6 +382,20 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
             if url_prop and not url_prop.startswith("http"):
                 url_prop = "https://www.zillow.com" + url_prop
 
+            # Extract photo URLs from RapidAPI response
+            photos = []
+            raw_photos = h.get("imgSrc", h.get("carouselPhotos", h.get("photos", [])))
+            if isinstance(raw_photos, str):
+                photos = [raw_photos]
+            elif isinstance(raw_photos, list):
+                for p in raw_photos[:8]:
+                    if isinstance(p, str):
+                        photos.append(p)
+                    elif isinstance(p, dict):
+                        url = p.get("url", p.get("src", p.get("mixedSources", {}).get("jpeg", [{}])[0].get("url", "")))
+                        if url:
+                            photos.append(url)
+
             price = int(price) if price else 0
             sqft  = int(sqft)  if sqft  else 0
             if not price or not sqft:
@@ -401,6 +415,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
                 "price_sqft": round(price / sqft) if sqft else 0,
                 "county":     county_key,
                 "listing_url": url_prop,
+                "photos":     photos[:25],
                 "source":     "zillow"
             })
         except Exception as e:
@@ -817,6 +832,140 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── Zillow Foto-Analyse ────────────────────────────────────────────────────────
+
+@app.route("/api/analyze-listing-photos", methods=["POST"])
+@login_required
+def analyze_listing_photos():
+    """Laedt Zillow-Fotos und analysiert sie mit RAG."""
+    import psycopg2
+
+    data       = request.json or {}
+    listing    = data.get("listing", {})
+    county_key = data.get("county_key", "pinellas")
+    photos     = listing.get("photos", [])
+
+    if not get_anthropic_key():
+        return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
+
+    # Wenn keine Foto-URLs im Listing, versuche sie via RapidAPI zu holen
+    if not photos and listing.get("listing_url"):
+        try:
+            rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
+            if rapidapi_key:
+                zpid = listing.get("zpid", "")
+                if zpid:
+                    r = requests.get(
+                        "https://real-time-real-estate-data.p.rapidapi.com/property-details",
+                        headers={"x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
+                                 "x-rapidapi-key": rapidapi_key},
+                        params={"zpid": zpid},
+                        timeout=15
+                    )
+                    if r.ok:
+                        d = r.json().get("data", {})
+                        raw = d.get("carouselPhotos", d.get("photos", []))
+                        for p in raw:
+                            url = p.get("url","") if isinstance(p,dict) else p
+                            if url:
+                                photos.append(url)
+        except Exception as e:
+            print(f"Photo fetch error: {e}")
+
+    if not photos:
+        return jsonify({"error": "Keine Fotos fuer dieses Listing verfuegbar. Bitte Bilder manuell im Import-Tab hochladen.", "no_photos": True}), 404
+
+    # Fotos herunterladen und als base64 kodieren
+    photo_results = []
+    for photo_url in photos:
+        try:
+            r = requests.get(photo_url, timeout=10, headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            })
+            if r.ok and r.headers.get("content-type","").startswith("image"):
+                img_b64 = base64.b64encode(r.content).decode("utf-8")
+                photo_results.append((img_b64, photo_url))
+        except Exception as e:
+            print(f"Photo download error: {e}")
+            continue
+
+    if not photo_results:
+        return jsonify({"error": "Fotos konnten nicht geladen werden. Bitte Bilder manuell hochladen.", "no_photos": True}), 404
+
+    # Jedes Foto durch RAG-Analyse schicken
+    db_url = os.environ.get("DATABASE_URL", "")
+    analyses = []
+
+    for img_b64, photo_url in photo_results:
+        # Schnelle Beschreibung
+        try:
+            desc_resp = _anthropic_post({
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 200,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+                    {"type": "text", "text": 'Describe this real estate photo in JSON: {"room_type":"<room>","damage_types":["<damage>"],"severity":<1-5>,"description":"<text>"}'}
+                ]}]
+            })
+            raw = desc_resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
+            desc = json.loads(raw)
+        except:
+            continue
+
+        # RAG Suche
+        similar = []
+        if db_url:
+            try:
+                embed_text = f"Room: {desc.get('room_type','')} Damage: {', '.join(desc.get('damage_types',[]))} Severity: {desc.get('severity',3)}"
+                words = embed_text.lower().split()[:100]
+                embedding = []
+                for i in range(1536):
+                    val = 0.0
+                    for j, word in enumerate(words):
+                        h = int(__import__('hashlib').md5(f"{word}{i}{j}".encode()).hexdigest(), 16)
+                        val += (h % 1000 - 500) / 500.0
+                    embedding.append(val / max(len(words), 1))
+                magnitude = sum(x**2 for x in embedding) ** 0.5
+                if magnitude > 0:
+                    embedding = [x / magnitude for x in embedding]
+                conn = psycopg2.connect(db_url)
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT deal_name, room_type, severity, reno_cost,
+                               1-(embedding <=> %s::vector) as sim
+                        FROM deal_images ORDER BY embedding <=> %s::vector LIMIT 3
+                    """, (embedding, embedding))
+                    for row in cur.fetchall():
+                        similar.append({"deal": row[0], "room": row[1], "severity": row[2],
+                                        "cost": float(row[3]) if row[3] else 0, "sim": round(float(row[4])*100,1)})
+                conn.close()
+            except Exception as e:
+                print(f"RAG error: {e}")
+
+        analyses.append({
+            "room_type":   desc.get("room_type",""),
+            "damage_types": desc.get("damage_types",[]),
+            "severity":    desc.get("severity", 3),
+            "description": desc.get("description",""),
+            "similar":     similar,
+            "est_cost":    similar[0]["cost"] if similar else 0,
+            "photo_url":   photo_url
+        })
+
+    # Zusammenfassung
+    total_cost = sum(a["est_cost"] for a in analyses)
+    worst = sorted(analyses, key=lambda x: x["severity"], reverse=True)
+
+    return jsonify({
+        "photos_analyzed": len(analyses),
+        "analyses":        analyses,
+        "total_est_cost":  total_cost,
+        "worst_room":      worst[0] if worst else None,
+        "rag_enabled":     bool(db_url),
+        "address":         listing.get("address","")
+    })
 
 
 # ── RAG Bildanalyse ────────────────────────────────────────────────────────────
