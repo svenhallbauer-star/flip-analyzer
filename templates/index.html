@@ -172,6 +172,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
 .email-listing-item{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .2s}
 .email-listing-item:hover{border-color:rgba(240,192,64,.4)}
 .email-listing-item .lc-addr{font-size:12px}
+/* Navigation Tabs */
+.nav-tabs{display:flex;gap:2px;background:var(--surface2);border-radius:8px;padding:4px;margin-bottom:18px}
+.nav-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border-radius:5px;cursor:pointer;font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;transition:all .2s;border:none;background:transparent}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.nav-tab-icon{font-size:14px}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+/* Navigation Tabs */
+.nav-tabs{display:flex;gap:2px;background:var(--surface2);border-radius:8px;padding:4px;margin-bottom:18px}
+.nav-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border-radius:5px;cursor:pointer;font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;transition:all .2s;border:none;background:transparent}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 /* Submarket pills */
 .sm-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
 .sm-pill{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 9px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s}
@@ -193,209 +208,186 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
     </div>
   </div>
 
-  <!-- API CONFIG -->
-  <div class="config-panel">
-    <div class="config-title">⚡ API-Konfiguration</div>
-    <div class="config-grid" style="grid-template-columns:1fr auto">
-      <div class="config-field">
-        <label>Anthropic API Key (für KI-Analyse)</label>
-        <input type="password" id="anthropic-key" placeholder="sk-ant-..." autocomplete="off">
-      </div>
-      <button class="btn-save" onclick="saveConfig()">Speichern</button>
-    </div>
-    <div class="config-status" id="config-status"></div>
-    <div class="config-hint">
-      🟢 <strong>Redfin-Daten:</strong> kein Key nötig — Listings werden direkt geladen ·
-      Anthropic Key für KI-Analyse: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> ·
-      Ohne Anthropic Key: Listings sichtbar, aber keine Vollanalyse möglich
-    </div>
+  <!-- NAVIGATION -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('search')" id="tab-search">🔍 Suche</button>
+    <button class="nav-tab" onclick="switchTab('import')" id="tab-import">📥 Import</button>
+    <button class="nav-tab" onclick="switchTab('settings')" id="tab-settings">⚙️ Einstellungen</button>
+    <button class="nav-tab" onclick="switchTab('admin')" id="tab-admin" style="display:none">👤 Benutzer</button>
   </div>
 
-  <!-- USER MANAGEMENT (nur Admin) -->
-  <div class="section" id="user-mgmt-section" style="display:none">
-    <div class="slabel">👤 Benutzerverwaltung</div>
-    <div id="user-list" style="margin-bottom:12px"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
-      <div class="field"><label>Benutzername</label><input type="text" id="new-username" placeholder="username"></div>
-      <div class="field"><label>Passwort</label><input type="password" id="new-password" placeholder="••••••••"></div>
-      <div class="field"><label>Rolle</label>
-        <select id="new-role" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px">
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-      <button class="btn-save" onclick="addUser()">+ Hinzufügen</button>
-    </div>
-  </div>
+  <!-- ═══ TAB: SUCHE ═══ -->
+  <div class="tab-panel active" id="panel-search">
 
-  <!-- PDF UPLOAD SECTION -->
-  <div class="section">
-    <div class="slabel">02 — PDF-Upload (Exposé / MLS-Sheet)</div>
-    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
-      <div class="upload-icon">📄</div>
-      <div class="upload-label">PDF hierher ziehen oder klicken</div>
-      <div class="upload-sub">Makler-Exposés, MLS-Sheets, Gutachten · max. 10 MB</div>
-    </div>
-    <input type="file" id="pdf-input" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
-    <div class="upload-file-list" id="upload-file-list"></div>
-    <div class="err-box" id="pdf-err"></div>
-    <button class="btn-primary" id="pdf-analyze-btn" onclick="analyzePDFs()" style="display:none">PDF ANALYSIEREN →</button>
-  </div>
-
-  <!-- EMAIL SECTION -->
-  <div class="section">
-    <div class="slabel">03 — Email-Anbindung (Makler-Emails)</div>
-    <div class="email-tabs">
-      <div class="email-tab active" id="etab-paste" onclick="selectEmailTab('paste')">
-        <div class="email-tab-label">✉ Email einfügen</div>
-        <div class="email-tab-sub">Text / HTML reinkopieren</div>
-      </div>
-      <div class="email-tab" id="etab-imap" onclick="selectEmailTab('imap')">
-        <div class="email-tab-label">📬 Gmail / IMAP</div>
-        <div class="email-tab-sub">Postfach automatisch scannen</div>
-      </div>
-    </div>
-
-    <!-- Paste form -->
-    <div class="paste-form show" id="paste-form">
-      <div class="field">
-        <label>Email-Inhalt einfügen (von Makler / MLS-Alert)</label>
-        <textarea id="email-paste" rows="6" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:10px;resize:vertical" placeholder="Email-Text hier einfügen — z.B. Zillow/Redfin-Alert, Makler-Email, MLS-Benachrichtigung..."></textarea>
-      </div>
-      <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
-    </div>
-
-    <!-- IMAP form -->
-    <div class="imap-form" id="imap-form">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="field">
-          <label>IMAP-Server</label>
-          <input type="text" id="imap-host" placeholder="imap.gmail.com" value="imap.gmail.com">
+    <div class="section">
+      <div class="slabel">County & Suchfilter</div>
+      <div class="county-tabs">
+        <div class="county-tab active" id="ctab-pinellas" onclick="selectCounty('pinellas')">
+          <div class="ct-name">Pinellas</div>
+          <div class="ct-sub">St. Pete · Clearwater · Largo</div>
+          <div class="ct-arv">ARV $200–265/sqft</div>
         </div>
-        <div class="field">
-          <label>Port</label>
-          <input type="number" id="imap-port" placeholder="993" value="993">
+        <div class="county-tab" id="ctab-hillsborough" onclick="selectCounty('hillsborough')">
+          <div class="ct-name">Hillsborough</div>
+          <div class="ct-sub">Tampa · Brandon · Riverview</div>
+          <div class="ct-arv">ARV $215–280/sqft</div>
+        </div>
+        <div class="county-tab" id="ctab-pasco" onclick="selectCounty('pasco')">
+          <div class="ct-name">Pasco</div>
+          <div class="ct-sub">Wesley Chapel · NPR · Holiday</div>
+          <div class="ct-arv">ARV $175–225/sqft</div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="field">
-          <label>Email-Adresse</label>
-          <input type="email" id="imap-user" placeholder="deine@gmail.com">
+      <div class="sm-row" id="sm-row"></div>
+      <div class="mib" id="mib"></div>
+      <div class="filter-row">
+        <div class="field"><label>Min. Preis ($)</label><input type="number" id="f-min" value="150000" placeholder="150000"></div>
+        <div class="field"><label>Max. Preis ($)</label><input type="number" id="f-max" value="420000" placeholder="420000"></div>
+        <div class="field"><label>Min. Beds</label>
+          <select id="f-beds"><option value="2">2+</option><option value="3" selected>3+</option><option value="4">4+</option></select>
         </div>
-        <div class="field">
-          <label>App-Passwort</label>
-          <input type="password" id="imap-pass" placeholder="xxxx xxxx xxxx xxxx">
-        </div>
+        <div class="field"><label>Max. Days on Market</label><input type="number" id="f-dom" value="90" placeholder="90"></div>
       </div>
-      <div class="field">
-        <label>Suchbegriff (Absender oder Betreff)</label>
-        <input type="text" id="imap-query" placeholder="z.B. zillow.com oder redfin.com oder Makler-Name" value="zillow.com OR redfin.com OR new listing">
-      </div>
-      <div style="font-size:10px;color:var(--muted);line-height:1.6;padding:8px;background:rgba(255,255,255,.02);border-radius:4px">
-        💡 Gmail: Unter <strong style="color:var(--text)">Einstellungen → Sicherheit → App-Passwörter</strong> ein App-Passwort erstellen.<br>
-        Nur Betreff + Absender werden gescannt — keine Emails werden gespeichert.
-      </div>
-      <button class="btn-primary" onclick="scanIMAP()">POSTFACH SCANNEN →</button>
+      <div class="err-box" id="search-err"></div>
+      <button class="btn-primary" id="search-btn" onclick="doSearch()">ZILLOW DURCHSUCHEN →</button>
     </div>
 
-    <!-- Email loading -->
-    <div class="loading" id="email-loading">
+    <div class="loading" id="search-loading">
       <div class="spinner"></div>
-      <div class="load-sub" id="email-load-text">Emails werden analysiert...</div>
+      <div class="load-sub">Zillow wird durchsucht...</div>
+      <div class="load-step" id="search-step"></div>
     </div>
 
-    <!-- Email results -->
-    <div class="email-result" id="email-result">
-      <div class="email-result-title">Gefundene Objekte aus Emails</div>
-      <div id="email-listings-list"></div>
-    </div>
-  </div>
-
-  <!-- SEARCH SECTION (was 01, now 04) -->
-  <div class="section">
-    <div class="slabel">04 — County & Suchfilter</div>
-    <div class="county-tabs">
-      <div class="county-tab active" id="ctab-pinellas" onclick="selectCounty('pinellas')">
-        <div class="ct-name">Pinellas</div>
-        <div class="ct-sub">St. Pete · Clearwater · Largo</div>
-        <div class="ct-arv">ARV $200–265/sqft</div>
+    <div id="listings-wrap" style="display:none">
+      <div class="results-bar">
+        <div class="results-count">Gefunden: <span id="listing-count">0</span> Objekte</div>
+        <span class="source-badge" id="source-badge"></span>
       </div>
-      <div class="county-tab" id="ctab-hillsborough" onclick="selectCounty('hillsborough')">
-        <div class="ct-name">Hillsborough</div>
-        <div class="ct-sub">Tampa · Brandon · Riverview</div>
-        <div class="ct-arv">ARV $215–280/sqft</div>
-      </div>
-      <div class="county-tab" id="ctab-pasco" onclick="selectCounty('pasco')">
-        <div class="ct-name">Pasco</div>
-        <div class="ct-sub">Wesley Chapel · NPR · Holiday</div>
-        <div class="ct-arv">ARV $175–225/sqft</div>
-      </div>
+      <div id="listings-list"></div>
     </div>
 
-    <!-- Submarket Pills -->
-    <div class="sm-row" id="sm-row"></div>
+    <div class="loading" id="analysis-loading">
+      <div class="spinner"></div>
+      <div class="load-sub">KI-Analyse läuft...</div>
+      <div class="load-step" id="analysis-step"></div>
+    </div>
 
-    <!-- Market Info -->
-    <div class="mib" id="mib"></div>
+    <div class="analysis-panel" id="analysis-panel">
+      <button class="back-btn" onclick="backToListings()">← Zurück zu Listings</button>
+      <div id="analysis-content"></div>
+    </div>
 
-    <!-- Filters -->
-    <div class="filter-row">
-      <div class="field">
-        <label>Min. Preis ($)</label>
-        <input type="number" id="f-min" value="150000" placeholder="150000">
+  </div>
+
+  <!-- ═══ TAB: IMPORT ═══ -->
+  <div class="tab-panel" id="panel-import">
+
+    <div class="section">
+      <div class="slabel">📄 PDF-Upload (Exposé / MLS-Sheet)</div>
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+        <div class="upload-icon">📄</div>
+        <div class="upload-label">PDF hierher ziehen oder klicken</div>
+        <div class="upload-sub">Makler-Exposés, MLS-Sheets, Gutachten · max. 10 MB</div>
       </div>
-      <div class="field">
-        <label>Max. Preis ($)</label>
-        <input type="number" id="f-max" value="420000" placeholder="420000">
+      <input type="file" id="pdf-input" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+      <div class="upload-file-list" id="upload-file-list"></div>
+      <div class="err-box" id="pdf-err"></div>
+      <button class="btn-primary" id="pdf-analyze-btn" onclick="analyzePDFs()" style="display:none">PDF ANALYSIEREN →</button>
+    </div>
+
+    <div class="section">
+      <div class="slabel">✉ Email-Anbindung (Makler-Emails)</div>
+      <div class="email-tabs">
+        <div class="email-tab active" id="etab-paste" onclick="selectEmailTab('paste')">
+          <div class="email-tab-label">✉ Email einfügen</div>
+          <div class="email-tab-sub">Text / HTML reinkopieren</div>
+        </div>
+        <div class="email-tab" id="etab-imap" onclick="selectEmailTab('imap')">
+          <div class="email-tab-label">📬 Gmail / IMAP</div>
+          <div class="email-tab-sub">Postfach automatisch scannen</div>
+        </div>
       </div>
-      <div class="field">
-        <label>Min. Beds</label>
-        <select id="f-beds">
-          <option value="2">2+</option>
-          <option value="3" selected>3+</option>
-          <option value="4">4+</option>
-        </select>
+      <div class="paste-form show" id="paste-form">
+        <div class="field">
+          <label>Email-Inhalt einfügen (von Makler / MLS-Alert)</label>
+          <textarea id="email-paste" rows="6" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:10px;resize:vertical" placeholder="Email-Text hier einfügen — z.B. Zillow/Redfin-Alert, Makler-Email, MLS-Benachrichtigung..."></textarea>
+        </div>
+        <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
       </div>
-      <div class="field">
-        <label>Max. Days on Market</label>
-        <input type="number" id="f-dom" value="90" placeholder="90">
+      <div class="imap-form" id="imap-form">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host" placeholder="imap.gmail.com" value="imap.gmail.com"></div>
+          <div class="field"><label>Port</label><input type="number" id="imap-port" placeholder="993" value="993"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="field"><label>Email-Adresse</label><input type="email" id="imap-user" placeholder="deine@gmail.com"></div>
+          <div class="field"><label>App-Passwort</label><input type="password" id="imap-pass" placeholder="xxxx xxxx xxxx xxxx"></div>
+        </div>
+        <div class="field">
+          <label>Suchbegriff</label>
+          <input type="text" id="imap-query" value="zillow.com OR redfin.com OR new listing">
+        </div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.6;padding:8px;background:rgba(255,255,255,.02);border-radius:4px">
+          💡 Gmail: Einstellungen → Sicherheit → App-Passwörter
+        </div>
+        <button class="btn-primary" onclick="scanIMAP()">POSTFACH SCANNEN →</button>
+      </div>
+      <div class="loading" id="email-loading">
+        <div class="spinner"></div>
+        <div class="load-sub" id="email-load-text">Emails werden analysiert...</div>
+      </div>
+      <div class="email-result" id="email-result">
+        <div class="email-result-title">Gefundene Objekte aus Emails</div>
+        <div id="email-listings-list"></div>
       </div>
     </div>
-    <div class="err-box" id="search-err"></div>
-    <button class="btn-primary" id="search-btn" onclick="doSearch()">ZILLOW DURCHSUCHEN →</button>
+
   </div>
 
-  <!-- LOADING SEARCH -->
-  <div class="loading" id="search-loading">
-    <div class="spinner"></div>
-    <div class="load-sub">Zillow wird durchsucht...</div>
-    <div class="load-step" id="search-step"></div>
-  </div>
+  <!-- ═══ TAB: EINSTELLUNGEN ═══ -->
+  <div class="tab-panel" id="panel-settings">
 
-  <!-- LISTINGS -->
-  <div id="listings-wrap" style="display:none">
-    <div class="results-bar">
-      <div class="results-count">Gefunden: <span id="listing-count">0</span> Objekte</div>
-      <span class="source-badge" id="source-badge"></span>
+    <div class="config-panel">
+      <div class="config-title">⚡ API-Konfiguration</div>
+      <div class="config-grid" style="grid-template-columns:1fr auto">
+        <div class="config-field">
+          <label>Anthropic API Key (für KI-Analyse)</label>
+          <input type="password" id="anthropic-key" placeholder="sk-ant-..." autocomplete="off">
+        </div>
+        <button class="btn-save" onclick="saveConfig()">Speichern</button>
+      </div>
+      <div class="config-status" id="config-status"></div>
+      <div class="config-hint">
+        🟢 <strong>Redfin-Daten:</strong> kein Key nötig —
+        Anthropic Key für KI-Analyse: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+      </div>
     </div>
-    <div id="listings-list"></div>
+
   </div>
 
-  <!-- LOADING ANALYSIS -->
-  <div class="loading" id="analysis-loading">
-    <div class="spinner"></div>
-    <div class="load-sub">KI analysiert Deal...</div>
-    <div class="load-step" id="analysis-step"></div>
+  <!-- ═══ TAB: BENUTZER (nur Admin) ═══ -->
+  <div class="tab-panel" id="panel-admin">
+
+    <div class="section">
+      <div class="slabel">👤 Benutzerverwaltung</div>
+      <div id="user-list" style="margin-bottom:12px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
+        <div class="field"><label>Benutzername</label><input type="text" id="new-username" placeholder="username"></div>
+        <div class="field"><label>Passwort</label><input type="password" id="new-password" placeholder="••••••••"></div>
+        <div class="field"><label>Rolle</label>
+          <select id="new-role" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="btn-save" onclick="addUser()">+ Hinzufügen</button>
+      </div>
+    </div>
+
   </div>
 
-  <!-- ANALYSIS RESULT -->
-  <div class="analysis-panel" id="analysis-panel">
-    <button class="back-btn" onclick="backToListings()">← Zurück zur Übersicht</button>
-    <div id="analysis-content"></div>
-  </div>
 
 </div>
-
 <script>
 const COUNTIES = {
   pinellas:     {name:'Pinellas County',medianPrice:381000,medianSqft:220,arvLow:200,arvHigh:265,avgDOM:16,belowAsk:55,yoy:'+5.3%',submarkets:['St. Petersburg','Clearwater','Largo','Dunedin','Pinellas Park','Safety Harbor','Tarpon Springs','Belleair','Seminole']},
@@ -714,7 +706,16 @@ function renderAnalysis(r, l) {
 
 function fmt(n){return'$'+Math.round(n).toLocaleString('de-DE')}
 
-// ── User Management ──────────────────────────────────────────────────────────
+// ── Tab Navigation ───────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['search','import','settings','admin'].forEach(t => {
+    document.getElementById('panel-'+t).classList.toggle('active', t===tab);
+    const btn = document.getElementById('tab-'+t);
+    if(btn) btn.classList.toggle('active', t===tab);
+  });
+}
+
+// ── User Management ───────────────────────────────────────────────────────────
 async function loadUserInfo() {
   try {
     const r = await fetch('/api/me');
@@ -722,7 +723,7 @@ async function loadUserInfo() {
     const d = await r.json();
     document.getElementById('user-name').textContent = d.name || d.username;
     if(d.role === 'admin') {
-      document.getElementById('user-mgmt-section').style.display = 'block';
+      document.getElementById('tab-admin').style.display = 'flex';
       loadUsers();
     }
   } catch(e) {}
