@@ -18,7 +18,7 @@ import secrets
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.secret_key = os.environ.get("SECRET_KEY", "flip-analyzer-default-key-change-me")
 
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
 RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
