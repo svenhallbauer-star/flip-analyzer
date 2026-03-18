@@ -333,6 +333,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
     </div>
 
     <div class="section">
+      <div class="slabel">Bild-Analyse mit RAG (KI + echte Deals)</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.6;padding:8px;background:var(--blue-bg);border-radius:8px;border:1px solid var(--border2)">
+        Lade ein Foto eines Raums oder Schadens hoch -- die KI vergleicht es mit deinen echten Deals (Ontario Dr + Circle Creek Dr) und schaetzt die Renovierungskosten basierend auf realen Erfahrungswerten.
+      </div>
+      <div class="upload-zone" id="rag-upload-zone" onclick="document.getElementById('rag-img-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleRagDrop(event)">
+        <div class="upload-icon">📸</div>
+        <div class="upload-label">Bild hochladen (Raum / Schaden)</div>
+        <div class="upload-sub">JPG, PNG -- max. 5 MB -- wird mit echten Deal-Bildern verglichen</div>
+      </div>
+      <input type="file" id="rag-img-input" accept="image/*" style="display:none" onchange="handleRagImage(this.files[0])">
+      <div id="rag-preview" style="display:none;margin:10px 0">
+        <img id="rag-img-preview" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" />
+      </div>
+      <div class="err-box" id="rag-err"></div>
+      <button class="btn-primary" id="rag-analyze-btn" onclick="analyzeImageRAG()" style="display:none">BILD MIT RAG ANALYSIEREN →</button>
+      <div class="loading" id="rag-loading">
+        <div class="spinner"></div>
+        <div class="load-sub">KI vergleicht mit echten Deals...</div>
+      </div>
+      <div id="rag-result" style="display:none"></div>
+    </div>
+
+    <div class="section">
       <div class="slabel">Email-Anbindung (Makler-Emails)</div>
       <div class="email-tabs">
         <div class="email-tab active" id="etab-paste" onclick="selectEmailTab('paste')">
@@ -803,6 +826,127 @@ async function deleteUser(username) {
   if(!confirm(`Benutzer "${username}" wirklich löschen?`)) return;
   await fetch(`/api/users/${username}`, {method:'DELETE'});
   loadUsers();
+}
+
+// ── RAG Image Analysis ───────────────────────────────────────────────────────
+let ragImageB64 = null;
+
+function handleRagDrop(e) {
+  e.preventDefault();
+  document.getElementById('rag-upload-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if(file) handleRagImage(file);
+}
+
+function handleRagImage(file) {
+  if(!file) return;
+  if(file.size > 5*1024*1024) {
+    const eb = document.getElementById('rag-err');
+    eb.textContent = 'Datei zu gross: max. 5 MB';
+    eb.classList.add('show');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const result = e.target.result;
+    ragImageB64 = result.split(',')[1];
+    document.getElementById('rag-img-preview').src = result;
+    document.getElementById('rag-preview').style.display = 'block';
+    document.getElementById('rag-analyze-btn').style.display = 'block';
+    document.getElementById('rag-result').style.display = 'none';
+    document.getElementById('rag-err').classList.remove('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeImageRAG() {
+  if(!ragImageB64) return;
+  document.getElementById('rag-analyze-btn').style.display = 'none';
+  document.getElementById('rag-loading').classList.add('show');
+  document.getElementById('rag-result').style.display = 'none';
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+    const resp = await fetch('/api/analyze-image-rag', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image: ragImageB64, county_key: county}),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    document.getElementById('rag-loading').classList.remove('show');
+    document.getElementById('rag-analyze-btn').style.display = 'block';
+
+    if(!resp.ok) {
+      const txt = await resp.text();
+      const eb = document.getElementById('rag-err');
+      eb.textContent = 'Fehler: ' + txt.slice(0,200);
+      eb.classList.add('show');
+      return;
+    }
+
+    const data = await resp.json();
+    if(data.error) {
+      const eb = document.getElementById('rag-err');
+      eb.textContent = data.error;
+      eb.classList.add('show');
+      return;
+    }
+
+    const sevColor = data.severity >= 4 ? 'var(--red)' : data.severity >= 3 ? 'var(--orange)' : 'var(--green)';
+    const prioClass = data.priority === 'MUST' ? 'tag-nogo' : data.priority === 'SHOULD' ? 'tag-maybe' : 'tag-go';
+    const ragBadge = data.rag_enabled
+      ? '<span class="tag tag-blue" style="font-size:10px">RAG aktiv -- ' + (data.similar_cases||[]).length + ' Referenzfaelle</span>'
+      : '<span class="tag tag-gray" style="font-size:10px">Keine Referenzfaelle</span>';
+
+    const similarHTML = (data.similar_cases||[]).map(c => `
+      <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:700;color:var(--text)">${c.deal}</span>
+          <span class="tag tag-blue">${c.similarity}% aehnlich</span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${c.room_type} | Schweregrad ${c.severity} | ${c.phase}</div>
+        <div style="font-size:11px;color:var(--green);font-weight:700;margin-top:3px">Kosten: $${Math.round(c.reno_cost).toLocaleString('de-DE')}</div>
+      </div>`).join('');
+
+    const actionsHTML = (data.action_items||[]).map(a =>
+      `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--text)">→ ${a}</div>`
+    ).join('');
+
+    document.getElementById('rag-result').innerHTML = `
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-top:12px">
+        <div style="padding:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text)">${data.room_type}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">${data.damage_types?.join(', ') || ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-head);font-size:20px;font-weight:900;color:var(--orange)">$${Math.round(data.estimated_reno_cost||0).toLocaleString('de-DE')}</div>
+            <div style="font-size:10px;color:var(--muted)">Geschaetzte Kosten</div>
+          </div>
+        </div>
+        <div style="padding:12px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="tag ${prioClass}">${data.priority}</span>
+          <span style="font-size:11px;color:${sevColor};font-weight:700">Schweregrad ${data.severity}/5</span>
+          ${ragBadge}
+        </div>
+        <div style="padding:14px">
+          <div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:12px">${data.description}</div>
+          ${data.cost_reasoning ? `<div style="font-size:10px;color:var(--muted);background:var(--orange-bg);border-radius:6px;padding:8px;margin-bottom:12px;border:1px solid var(--orange-border)">${data.cost_reasoning}</div>` : ''}
+          ${actionsHTML ? `<div style="margin-bottom:12px"><div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Massnahmen</div>${actionsHTML}</div>` : ''}
+          ${similarHTML ? `<div><div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Referenzfaelle aus echten Deals</div>${similarHTML}</div>` : ''}
+        </div>
+      </div>`;
+    document.getElementById('rag-result').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('rag-loading').classList.remove('show');
+    document.getElementById('rag-analyze-btn').style.display = 'block';
+    const eb = document.getElementById('rag-err');
+    eb.textContent = e.name === 'AbortError' ? 'Timeout -- bitte nochmal versuchen.' : 'Fehler: ' + e.message;
+    eb.classList.add('show');
+  }
 }
 
 // ── PDF Upload ────────────────────────────────────────────────────────────────
