@@ -819,6 +819,143 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
         return jsonify({"error": str(e)}), 500
 
 
+# ── RAG Bildanalyse ────────────────────────────────────────────────────────────
+
+@app.route("/api/analyze-image-rag", methods=["POST"])
+@login_required
+def analyze_image_rag():
+    """Analysiert ein Bild mit RAG -- sucht aehnliche Bilder aus echten Deals."""
+    import psycopg2
+
+    data       = request.json or {}
+    img_b64    = data.get("image", "")
+    county_key = data.get("county_key", "pinellas")
+    room_hint  = data.get("room_hint", "")
+
+    if not get_anthropic_key():
+        return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
+    if not img_b64:
+        return jsonify({"error": "Kein Bild erhalten."}), 400
+
+    db_url = os.environ.get("DATABASE_URL", "")
+
+    # Schritt 1: Bild beschriften
+    describe_prompt = """Describe this real estate image briefly for renovation analysis.
+Respond ONLY with valid JSON:
+{
+  "room_type": "<Kitchen|Bathroom|Living Room|Bedroom|Basement|Exterior|Roof|Garage|Hallway>",
+  "damage_types": ["<Mold|Water Damage|Structural|Outdated|OK>"],
+  "severity": <1-5>,
+  "description": "<brief description>"
+}"""
+
+    try:
+        desc_resp = _anthropic_post({
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 300,
+            "messages": [{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+                {"type": "text", "text": describe_prompt}
+            ]}]
+        })
+        raw = desc_resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
+        img_desc = json.loads(raw)
+    except Exception as e:
+        img_desc = {"room_type": room_hint or "Unknown", "damage_types": [], "severity": 3, "description": ""}
+
+    # Schritt 2: Aehnliche Faelle suchen
+    similar_cases = []
+    if db_url:
+        try:
+            embed_text = f"Room: {img_desc.get('room_type','')} Damage: {', '.join(img_desc.get('damage_types',[]))} Severity: {img_desc.get('severity',3)}"
+            words = embed_text.lower().split()[:100]
+            embedding = []
+            for i in range(1536):
+                val = 0.0
+                for j, word in enumerate(words):
+                    h = int(__import__('hashlib').md5(f"{word}{i}{j}".encode()).hexdigest(), 16)
+                    val += (h % 1000 - 500) / 500.0
+                embedding.append(val / max(len(words), 1))
+            magnitude = sum(x**2 for x in embedding) ** 0.5
+            if magnitude > 0:
+                embedding = [x / magnitude for x in embedding]
+
+            conn = psycopg2.connect(db_url)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT deal_name, phase, filename, room_type, damage_type,
+                           severity, description, reno_cost, deal_data,
+                           1 - (embedding <=> %s::vector) as similarity
+                    FROM deal_images
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT 5
+                """, (embedding, embedding))
+                for row in cur.fetchall():
+                    similar_cases.append({
+                        "deal": row[0], "phase": row[1], "filename": row[2],
+                        "room_type": row[3], "damage_type": row[4], "severity": row[5],
+                        "description": row[6], "reno_cost": float(row[7]) if row[7] else 0,
+                        "deal_data": row[8], "similarity": round(float(row[9]) * 100, 1)
+                    })
+            conn.close()
+        except Exception as e:
+            print(f"DB-Fehler RAG: {e}")
+
+    # Schritt 3: Vollanalyse mit RAG-Kontext
+    county = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
+    rag_context = ""
+    if similar_cases:
+        rag_context = "\n\nSIMILAR CASES FROM REAL DEALS (use for cost estimation):\n"
+        for i, case in enumerate(similar_cases[:3], 1):
+            deal_data = case.get("deal_data", {})
+            reno = deal_data.get("renovation_costs", {}) if isinstance(deal_data, dict) else {}
+            rag_context += f"""
+Case {i} (Similarity: {case['similarity']}%):
+- Deal: {case['deal']} | Phase: {case['phase']}
+- Room: {case['room_type']} | Damage: {case['damage_type']} | Severity: {case['severity']}
+- Description: {case['description']}
+- Estimated cost for this room: ${case['reno_cost']:,.0f}
+- Total renovation cost of deal: ${reno.get('total', 0):,.0f}
+"""
+
+    analysis_prompt = f"""Analyze this real estate image for Fix-and-Flip in {county['name']}.
+{rag_context}
+
+MARKET {county['name']}:
+- ARV: ${county['arv_low']}-${county['arv_high']}/sqft
+- Median: ${county['median_price']:,}
+
+Based on the image AND similar reference cases -- respond ONLY with valid JSON:
+{{
+  "room_type": "{img_desc.get('room_type', '')}",
+  "damage_types": {json.dumps(img_desc.get('damage_types', []))},
+  "severity": {img_desc.get('severity', 3)},
+  "description": "<detailed description of what you see>",
+  "priority": "<MUST|SHOULD|OPTIONAL>",
+  "estimated_reno_cost": <cost estimate in USD based on reference cases>,
+  "cost_reasoning": "<explanation referencing similar cases>",
+  "similar_cases_used": {json.dumps([c['deal'] + ' (' + str(c['similarity']) + '%)' for c in similar_cases[:3]])},
+  "action_items": ["<action 1>", "<action 2>", "<action 3>"]
+}}"""
+
+    try:
+        resp = _anthropic_post({
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 800,
+            "messages": [{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+                {"type": "text", "text": analysis_prompt}
+            ]}]
+        })
+        raw = resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
+        result = json.loads(raw)
+        result["similar_cases"] = similar_cases[:3]
+        result["rag_enabled"] = len(similar_cases) > 0
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── Demo-Daten ─────────────────────────────────────────────────────────────────
 def _demo_listings(county_key):
     demos = {
