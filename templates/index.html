@@ -4,249 +4,286 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Flip Analyzer — Tampa Bay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1117;--surface:#181c25;--surface2:#1e2330;
-  --border:rgba(255,255,255,0.08);--accent:#f0c040;--accent2:#4af0a0;
-  --danger:#f05050;--text:#e8e4dc;--muted:#7a7f8e;
-  --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
+  --bg:#f0f9ff;--surface:#fff;--surface2:#fafcff;
+  --border:#e8f4ff;--border2:#dbeafe;
+  --orange:#f97316;--orange2:#fb923c;--orange-bg:#fff7ed;--orange-border:#fed7aa;
+  --blue:#0ea5e9;--blue2:#06b6d4;--blue-bg:#f0f9ff;
+  --green:#10b981;--green-bg:#dcfce7;--green-text:#16a34a;
+  --red:#ef4444;--red-bg:#fee2e2;--red-text:#dc2626;
+  --text:#1e293b;--muted:#94a3b8;--hint:#cbd5e1;
+  --font:'Plus Jakarta Sans',sans-serif;--font-head:'Unbounded',sans-serif;
 }
-body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:13px;min-height:100vh}
-.app{max-width:780px;margin:0 auto;padding:24px 20px 60px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;min-height:100vh}
+.app{max-width:820px;margin:0 auto;padding:0 0 60px}
+
+/* Top stripe */
+.top-stripe{height:4px;background:linear-gradient(90deg,#0ea5e9,#06b6d4,#10b981,#f59e0b,#ef4444,#f97316)}
 
 /* Header */
-.header{display:flex;align-items:center;gap:12px;margin-bottom:28px;border-bottom:1px solid var(--border);padding-bottom:16px}
-.header h1{font-family:var(--font-head);font-size:24px;font-weight:800;color:var(--accent);letter-spacing:-0.5px}
-.badge{display:inline-flex;align-items:center;gap:6px;background:rgba(240,192,64,0.1);border:1px solid rgba(240,192,64,0.25);color:var(--accent);border-radius:4px;padding:3px 10px;font-size:11px;margin-left:auto}
-.dot{width:7px;height:7px;background:var(--accent2);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.header{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.logo{font-family:var(--font-head);font-size:14px;font-weight:900;letter-spacing:-1px;line-height:1}
+.logo .fl{color:var(--orange)}
+.logo .ip{color:var(--blue)}
+.logo .rest{color:var(--text);font-weight:700;font-size:12px}
+.logo-sub{font-size:8px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.header-right{display:flex;align-items:center;gap:8px}
+.avatar{width:30px;height:30px;background:linear-gradient(135deg,var(--orange),var(--blue));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff}
+.btn-logout{font-size:10px;color:var(--muted);border:1px solid var(--border2);padding:5px 11px;border-radius:7px;cursor:pointer;background:#fff;text-decoration:none}
+.btn-logout:hover{border-color:var(--orange);color:var(--orange)}
+.user-name{font-size:11px;color:var(--muted);font-weight:500}
 
-/* API Config */
-.config-panel{background:rgba(240,192,64,0.04);border:1px solid rgba(240,192,64,0.18);border-radius:8px;padding:16px;margin-bottom:18px}
-.config-title{font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--accent);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
-.config-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
-.config-field{display:flex;flex-direction:column;gap:4px}
-.config-field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.config-field input{background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px}
-.config-field input:focus{outline:none;border-color:rgba(240,192,64,.4)}
-.config-field input::placeholder{color:var(--muted)}
-.btn-save{background:rgba(240,192,64,.15);border:1px solid rgba(240,192,64,.3);color:var(--accent);font-family:var(--font-mono);font-size:12px;padding:8px 16px;border-radius:5px;cursor:pointer;white-space:nowrap;height:37px}
-.btn-save:hover{background:rgba(240,192,64,.25)}
-.config-status{display:flex;gap:12px;margin-top:8px;font-size:11px}
-.status-item{padding:3px 8px;border-radius:3px}
-.status-ok{background:rgba(74,240,160,.1);color:var(--accent2)}
-.status-err{background:rgba(240,80,80,.1);color:var(--danger)}
-.config-hint{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6}
-.config-hint a{color:var(--accent);text-decoration:none}
+/* Nav */
+.nav{display:flex;padding:10px 24px;gap:4px;background:#fff;border-bottom:1px solid var(--border)}
+.nav-item{font-size:11px;font-weight:600;padding:7px 15px;border-radius:8px;color:var(--muted);cursor:pointer;border:1px solid transparent;transition:all .15s}
+.nav-item:hover{color:var(--text)}
+.nav-item.active{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
 
-/* Sections */
-.section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
-.slabel{font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px}
+/* Tab panels */
+.tab-panel{display:none;padding:20px 24px}
+.tab-panel.active{display:block}
+
+/* Market hero */
+.market-hero{background:linear-gradient(135deg,var(--orange-bg),var(--blue-bg));border-radius:16px;padding:18px;margin-bottom:16px;border:1px solid var(--border)}
+.market-hero-title{font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--text);margin-bottom:12px;letter-spacing:-.2px}
+.market-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mstat{background:#fff;border-radius:10px;padding:11px;text-align:center;border:1px solid var(--border)}
+.mstat-l{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.mstat-v{font-size:18px;font-weight:800}
+.mstat-v.o{color:var(--orange)}
+.mstat-v.b{color:var(--blue)}
+.mstat-v.g{color:var(--green)}
+.mstat-v.t{color:var(--text)}
 
 /* County tabs */
-.county-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.county-tab{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 10px;cursor:pointer;text-align:center;transition:all .2s}
-.county-tab:hover{border-color:rgba(240,192,64,.3)}
-.county-tab.active{border-color:var(--accent);background:rgba(240,192,64,.07)}
-.ct-name{font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text)}
-.county-tab.active .ct-name{color:var(--accent)}
-.ct-sub{font-size:10px;color:var(--muted);margin-top:3px}
-.ct-arv{font-size:10px;color:var(--accent2);margin-top:1px}
+.county-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.county-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:14px;text-align:center;cursor:pointer;transition:all .15s}
+.county-card:hover{border-color:var(--orange-border)}
+.county-card.active{border-color:var(--orange);background:linear-gradient(135deg,var(--orange-bg),#fff);box-shadow:0 4px 12px rgba(249,115,22,.1)}
+.cc-name{font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text);margin-bottom:3px}
+.county-card.active .cc-name{color:var(--orange)}
+.cc-sub{font-size:9px;color:var(--muted);margin-bottom:4px}
+.cc-arv{font-size:10px;font-weight:700;color:var(--blue)}
+
+/* Submarket pills */
+.sm-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.sm-pill{background:#fff;border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:10px;color:var(--muted);cursor:pointer;transition:all .15s}
+.sm-pill:hover{border-color:var(--orange-border);color:var(--text)}
+.sm-pill.active{border-color:var(--green);color:var(--green-text);background:var(--green-bg)}
 
 /* Market info bar */
-.mib{display:flex;gap:16px;flex-wrap:wrap;background:var(--surface2);border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11px}
+.mib{display:flex;gap:16px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11px}
 .mib-item{display:flex;flex-direction:column;gap:1px}
-.mib-label{color:var(--muted)}
-.mib-val{color:var(--accent);font-weight:500}
+.mib-label{color:var(--muted);font-size:9px}
+.mib-val{color:var(--orange);font-weight:700}
 
 /* Filters */
 .filter-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px}
 .field{display:flex;flex-direction:column;gap:4px}
-.field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.field input,.field select{background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px;transition:border-color .2s}
-.field input:focus,.field select:focus{outline:none;border-color:rgba(240,192,64,.4)}
-.field input::placeholder{color:var(--muted)}
+.field label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.field input,.field select{background:#fff;border:1.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:8px 10px;transition:border-color .15s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--orange)}
 
 /* Buttons */
-.btn-primary{width:100%;padding:13px;background:var(--accent);color:#0f1117;font-family:var(--font-head);font-size:14px;font-weight:800;border:none;border-radius:6px;cursor:pointer;transition:all .2s;letter-spacing:.3px}
-.btn-primary:hover{background:#f5d060;transform:translateY(-1px)}
+.btn-primary{width:100%;padding:13px;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;font-family:var(--font-head);font-size:11px;font-weight:900;border:none;border-radius:10px;cursor:pointer;transition:all .2s;letter-spacing:.3px;box-shadow:0 4px 14px rgba(249,115,22,.25)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(249,115,22,.3)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* Err box */
+.err-box{background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;color:var(--red-text);font-size:11px;display:none;margin-bottom:10px}
+.err-box.show{display:block}
 
 /* Loading */
 .loading{display:none;text-align:center;padding:36px}
 .loading.show{display:block}
-.spinner{display:inline-block;width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+.spinner{display:inline-block;width:32px;height:32px;border:2.5px solid var(--border2);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .load-sub{color:var(--muted);font-size:12px}
-.load-step{color:var(--accent);font-size:11px;margin-top:6px;min-height:18px}
+.load-step{color:var(--orange);font-size:11px;margin-top:6px;min-height:18px}
 
-/* Listings */
-.results-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.results-count{font-family:var(--font-head);font-size:12px;color:var(--muted)}
-.results-count span{color:var(--accent2)}
-.source-badge{font-size:10px;padding:3px 8px;border-radius:3px}
-.source-live{background:rgba(74,240,160,.1);color:var(--accent2)}
-.source-demo{background:rgba(240,192,64,.1);color:var(--accent)}
+/* Results bar */
+.results-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.results-count{font-size:11px;color:var(--muted);font-weight:600}
+.results-count span{color:var(--text)}
+.source-badge{font-size:10px;padding:3px 10px;border-radius:20px;font-weight:600}
+.source-live{background:var(--green-bg);color:var(--green-text)}
+.source-demo{background:var(--orange-bg);color:var(--orange)}
 
-.listing-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;transition:all .2s}
-.listing-card:hover{border-color:rgba(240,192,64,.35)}
-.lc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.lc-addr{font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
-.lc-price{font-family:var(--font-head);font-size:18px;font-weight:800;color:var(--accent);text-align:right}
-.lc-zest{font-size:10px;color:var(--muted);text-align:right;margin-top:2px}
-.lc-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:8px}
-.lc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
-.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px}
-.tag-green{background:rgba(74,240,160,.12);color:var(--accent2)}
-.tag-yellow{background:rgba(240,192,64,.12);color:var(--accent)}
-.tag-red{background:rgba(240,80,80,.12);color:var(--danger)}
-.tag-blue{background:rgba(64,160,240,.12);color:#70b8f0}
-.tag-gray{background:rgba(255,255,255,.06);color:var(--muted)}
-.btn-analyze{width:100%;padding:9px;background:transparent;border:1px solid rgba(240,192,64,.4);color:var(--accent);font-family:var(--font-head);font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;transition:all .2s}
-.btn-analyze:hover{background:var(--accent);color:#0f1117}
+/* Listing card */
+.listing-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:8px;transition:all .15s}
+.listing-card:hover{border-color:var(--orange-border);box-shadow:0 4px 16px rgba(249,115,22,.08)}
+.lc-top{padding:14px;display:flex;justify-content:space-between;align-items:flex-start}
+.lc-addr{font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px}
+.lc-meta{font-size:10px;color:var(--muted)}
+.lc-price{font-family:var(--font-head);font-size:16px;font-weight:900;color:var(--text);text-align:right}
+.lc-arv{font-size:10px;color:var(--green);font-weight:700;text-align:right;margin-top:2px}
+.lc-bottom{padding:10px 14px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.lc-tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{display:inline-block;padding:3px 9px;border-radius:20px;font-size:9px;font-weight:700}
+.tag-go{background:var(--green-bg);color:var(--green-text)}
+.tag-nogo{background:var(--red-bg);color:var(--red-text)}
+.tag-maybe{background:var(--orange-bg);color:var(--orange)}
+.tag-dom{background:var(--orange-bg);color:var(--orange)}
+.tag-blue{background:var(--blue-bg);color:var(--blue)}
+.tag-gray{background:#f1f5f9;color:var(--muted)}
+.score-bar-wrap{display:flex;align-items:center;gap:6px}
+.score-bar{height:4px;width:60px;background:var(--border2);border-radius:2px;overflow:hidden}
+.score-fill{height:100%;border-radius:2px}
+.score-txt{font-size:10px;color:var(--muted);font-weight:600}
+.btn-analyze{width:100%;padding:9px;background:transparent;border:1.5px solid var(--orange-border);color:var(--orange);font-family:var(--font);font-size:11px;font-weight:700;border-radius:8px;cursor:pointer;transition:all .15s;margin-top:8px}
+.btn-analyze:hover{background:var(--orange);color:#fff}
 
-/* Analysis Result */
-.analysis-panel{display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
+/* Analysis panel */
+.analysis-panel{display:none;background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:20px;margin-bottom:14px}
 .analysis-panel.show{display:block}
-.back-btn{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font-mono);font-size:11px;padding:5px 12px;border-radius:4px;cursor:pointer;margin-bottom:14px}
-.back-btn:hover{border-color:rgba(240,192,64,.3);color:var(--accent)}
-.score-bar{display:flex;align-items:center;gap:16px;background:var(--surface2);border-radius:6px;padding:16px;margin-bottom:12px}
-.score-circle{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;flex-shrink:0;border:2px solid var(--accent)}
-.score-num{font-family:var(--font-head);font-size:26px;font-weight:800;line-height:1}
-.score-lbl{font-size:9px;color:var(--muted)}
-.verdict-tag{display:inline-block;padding:4px 12px;border-radius:4px;font-family:var(--font-head);font-size:13px;font-weight:700;margin-bottom:6px}
-.verdict-go{background:rgba(74,240,160,.15);color:var(--accent2)}
-.verdict-nogo{background:rgba(240,80,80,.15);color:var(--danger)}
-.verdict-maybe{background:rgba(240,192,64,.15);color:var(--accent)}
+.back-btn{background:#fff;border:1.5px solid var(--border2);color:var(--muted);font-family:var(--font);font-size:11px;padding:6px 14px;border-radius:8px;cursor:pointer;margin-bottom:16px}
+.back-btn:hover{border-color:var(--orange);color:var(--orange)}
+.score-bar-big{display:flex;align-items:center;gap:16px;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid var(--border)}
+.score-circle{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;flex-shrink:0;border:3px solid var(--orange)}
+.score-num{font-family:var(--font-head);font-size:22px;font-weight:900;line-height:1}
+.score-lbl{font-size:8px;color:var(--muted)}
+.verdict-tag{display:inline-block;padding:4px 14px;border-radius:20px;font-family:var(--font-head);font-size:12px;font-weight:700;margin-bottom:6px}
+.verdict-go{background:var(--green-bg);color:var(--green-text)}
+.verdict-nogo{background:var(--red-bg);color:var(--red-text)}
+.verdict-maybe{background:var(--orange-bg);color:var(--orange)}
 .verdict-desc{color:var(--muted);font-size:12px;line-height:1.5}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.metric{background:var(--surface2);border-radius:6px;padding:12px;border-left:2px solid var(--border)}
-.metric.pos{border-left-color:var(--accent2)}
-.metric.warn{border-left-color:var(--accent)}
-.metric.neg{border-left-color:var(--danger)}
-.m-label{font-size:10px;color:var(--muted);margin-bottom:3px}
-.m-val{font-family:var(--font-head);font-size:16px;font-weight:700}
-.m-sub{font-size:10px;color:var(--muted);margin-top:2px}
-.reno-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.metric{background:var(--surface2);border-radius:10px;padding:12px;border-left:3px solid var(--border)}
+.metric.pos{border-left-color:var(--green)}
+.metric.warn{border-left-color:var(--orange)}
+.metric.neg{border-left-color:var(--red)}
+.m-label{font-size:9px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+.m-val{font-family:var(--font-head);font-size:15px;font-weight:700}
+.m-sub{font-size:9px;color:var(--muted);margin-top:2px}
+.reno-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
 .reno-item:last-child{border-bottom:none}
-.reno-name{font-size:12px;color:var(--muted);min-width:140px}
-.reno-bar-wrap{flex:1;margin:0 10px;height:3px;background:var(--border);border-radius:2px}
-.reno-bar{height:3px;border-radius:2px;background:var(--accent)}
-.reno-cost{font-size:12px;color:var(--text);min-width:60px;text-align:right}
+.reno-name{font-size:11px;color:var(--muted);min-width:140px}
+.reno-bar-wrap{flex:1;margin:0 10px;height:3px;background:var(--border2);border-radius:2px}
+.reno-bar{height:3px;border-radius:2px;background:var(--orange)}
+.reno-cost{font-size:11px;color:var(--text);font-weight:600;min-width:60px;text-align:right}
 .reno-total-row{display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:1px solid var(--border)}
-.comps-list{display:flex;flex-direction:column;gap:7px}
-.comp-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--surface);border-radius:5px;border:1px solid var(--border)}
+.comps-list{display:flex;flex-direction:column;gap:6px}
+.comp-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)}
 .comp-price{font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--text)}
-.err-box{background:rgba(240,80,80,.08);border:1px solid rgba(240,80,80,.2);border-radius:6px;padding:12px;color:var(--danger);font-size:12px;display:none;margin-bottom:10px}
-.err-box.show{display:block}
-.disclaimer{color:var(--muted);font-size:10px;line-height:1.6;padding:10px;background:rgba(255,255,255,.02);border-radius:4px;margin-top:12px}
+.disclaimer{color:var(--muted);font-size:9px;line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px;margin-top:12px}
 
-/* PDF Upload */
-.upload-zone{border:1.5px dashed rgba(240,192,64,.35);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(240,192,64,.02);margin-bottom:12px}
-.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(240,192,64,.06)}
-.upload-icon{font-size:24px;margin-bottom:6px}
-.upload-label{font-family:var(--font-head);font-size:12px;color:var(--accent);font-weight:700}
+/* Section box */
+.section{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:18px;margin-bottom:12px}
+.slabel{font-family:var(--font-head);font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px}
+
+/* Upload */
+.upload-zone{border:2px dashed var(--orange-border);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all .15s;background:var(--orange-bg);margin-bottom:12px}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--orange);background:#fff3e8}
+.upload-icon{font-size:28px;margin-bottom:8px}
+.upload-label{font-family:var(--font-head);font-size:12px;color:var(--orange);font-weight:700}
 .upload-sub{font-size:10px;color:var(--muted);margin-top:3px}
 .upload-file-list{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
-.upload-file-item{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-size:11px}
+.upload-file-item{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:11px}
 .upload-file-name{color:var(--text);flex:1}
-.upload-file-remove{color:var(--danger);cursor:pointer;padding:0 4px;font-size:14px}
-.upload-file-status{font-size:10px;color:var(--accent2);margin-left:8px}
-/* Email Section */
+.upload-file-remove{color:var(--red-text);cursor:pointer;padding:0 4px;font-size:14px}
+
+/* Email tabs */
 .email-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.email-tab{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;cursor:pointer;transition:all .2s}
-.email-tab:hover{border-color:rgba(240,192,64,.3)}
-.email-tab.active{border-color:var(--accent);background:rgba(240,192,64,.07)}
-.email-tab-label{font-family:var(--font-head);font-size:12px;font-weight:700;color:var(--text)}
-.email-tab.active .email-tab-label{color:var(--accent)}
-.email-tab-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.email-tab{background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .15s}
+.email-tab:hover{border-color:var(--orange-border)}
+.email-tab.active{border-color:var(--orange);background:var(--orange-bg)}
+.email-tab-label{font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)}
+.email-tab.active .email-tab-label{color:var(--orange)}
+.email-tab-sub{font-size:9px;color:var(--muted);margin-top:2px}
 .imap-form{display:none;flex-direction:column;gap:8px}
 .imap-form.show{display:flex}
 .paste-form{display:none;flex-direction:column;gap:8px}
 .paste-form.show{display:flex}
-.email-result{background:var(--surface2);border:1px solid rgba(74,240,160,.2);border-radius:6px;padding:12px;margin-top:10px;display:none}
+.email-result{background:var(--green-bg);border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-top:10px;display:none}
 .email-result.show{display:block}
-.email-result-title{font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
-.email-listing-item{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .2s}
-.email-listing-item:hover{border-color:rgba(240,192,64,.4)}
-.email-listing-item .lc-addr{font-size:12px}
-/* Navigation Tabs */
-.nav-tabs{display:flex;gap:2px;background:var(--surface2);border-radius:8px;padding:4px;margin-bottom:18px}
-.nav-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border-radius:5px;cursor:pointer;font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;transition:all .2s;border:none;background:transparent}
-.nav-tab:hover{color:var(--text)}
-.nav-tab.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.nav-tab-icon{font-size:14px}
-.tab-panel{display:none}
-.tab-panel.active{display:block}
-/* Navigation Tabs */
-.nav-tabs{display:flex;gap:2px;background:var(--surface2);border-radius:8px;padding:4px;margin-bottom:18px}
-.nav-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border-radius:5px;cursor:pointer;font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;transition:all .2s;border:none;background:transparent}
-.nav-tab:hover{color:var(--text)}
-.nav-tab.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.tab-panel{display:none}
-.tab-panel.active{display:block}
-/* Submarket pills */
-.sm-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
-.sm-pill{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 9px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s}
-.sm-pill:hover{border-color:rgba(240,192,64,.3);color:var(--text)}
-.sm-pill.active{border-color:var(--accent2);color:var(--accent2);background:rgba(74,240,160,.06)}
+.email-result-title{font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--green-text);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.email-listing-item{background:#fff;border:1px solid #bbf7d0;border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s}
+.email-listing-item:hover{border-color:var(--orange)}
+
+/* Config panel */
+.config-panel{background:var(--orange-bg);border:1.5px solid var(--orange-border);border-radius:14px;padding:16px;margin-bottom:12px}
+.config-title{font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--orange);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.config-grid{display:grid;gap:8px;align-items:end}
+.config-field{display:flex;flex-direction:column;gap:4px}
+.config-field label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.config-field input{background:#fff;border:1.5px solid var(--orange-border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:8px 10px}
+.config-field input:focus{outline:none;border-color:var(--orange)}
+.btn-save{background:var(--orange);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;cursor:pointer;border:none;white-space:nowrap;height:37px}
+.btn-save:hover{background:var(--orange2)}
+.config-status{display:flex;gap:10px;margin-top:8px;font-size:11px;flex-wrap:wrap}
+.status-item{padding:3px 10px;border-radius:20px;font-weight:600}
+.status-ok{background:var(--green-bg);color:var(--green-text)}
+.status-err{background:var(--red-bg);color:var(--red-text)}
+.config-hint{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6}
+.config-hint a{color:var(--orange);text-decoration:none}
 </style>
 </head>
 <body>
+
 <div class="app">
+  <div class="top-stripe"></div>
 
   <!-- HEADER -->
   <div class="header">
-    <h1>FLIP ANALYZER</h1>
-    <span style="color:var(--muted);font-size:11px">Tampa Bay Pro</span>
-    <div class="badge"><span class="dot"></span> Pinellas · Hillsborough · Pasco</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-left:12px">
-      <span id="user-name" style="font-size:11px;color:var(--muted)"></span>
-      <a href="/logout" style="background:rgba(240,80,80,.12);border:1px solid rgba(240,80,80,.25);color:#f05050;font-family:var(--font-mono);font-size:11px;padding:4px 10px;border-radius:4px;text-decoration:none">Logout</a>
+    <div>
+      <div class="logo"><span class="fl">FL</span><span class="ip">IP</span> <span class="rest">Analyzer</span></div>
+      <div class="logo-sub">Tampa Bay · Fix &amp; Flip</div>
+    </div>
+    <div class="header-right">
+      <span class="user-name" id="user-name"></span>
+      <div class="avatar" id="user-avatar">?</div>
+      <a href="/logout" class="btn-logout">Logout</a>
     </div>
   </div>
 
-  <!-- NAVIGATION -->
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('search')" id="tab-search">🔍 Suche</button>
-    <button class="nav-tab" onclick="switchTab('import')" id="tab-import">📥 Import</button>
-    <button class="nav-tab" onclick="switchTab('settings')" id="tab-settings">⚙️ Einstellungen</button>
-    <button class="nav-tab" onclick="switchTab('admin')" id="tab-admin" style="display:none">👤 Benutzer</button>
+  <!-- NAV -->
+  <div class="nav">
+    <div class="nav-item active" id="tab-search" onclick="switchTab('search')">🔍 Suche</div>
+    <div class="nav-item" id="tab-import" onclick="switchTab('import')">📥 Import</div>
+    <div class="nav-item" id="tab-settings" onclick="switchTab('settings')">⚙️ Einstellungen</div>
+    <div class="nav-item" id="tab-admin" onclick="switchTab('admin')" style="display:none">👤 Benutzer</div>
   </div>
 
-  <!-- ═══ TAB: SUCHE ═══ -->
+  <!-- ═══ SUCHE ═══ -->
   <div class="tab-panel active" id="panel-search">
 
-    <div class="section">
-      <div class="slabel">County & Suchfilter</div>
-      <div class="county-tabs">
-        <div class="county-tab active" id="ctab-pinellas" onclick="selectCounty('pinellas')">
-          <div class="ct-name">Pinellas</div>
-          <div class="ct-sub">St. Pete · Clearwater · Largo</div>
-          <div class="ct-arv">ARV $200–265/sqft</div>
-        </div>
-        <div class="county-tab" id="ctab-hillsborough" onclick="selectCounty('hillsborough')">
-          <div class="ct-name">Hillsborough</div>
-          <div class="ct-sub">Tampa · Brandon · Riverview</div>
-          <div class="ct-arv">ARV $215–280/sqft</div>
-        </div>
-        <div class="county-tab" id="ctab-pasco" onclick="selectCounty('pasco')">
-          <div class="ct-name">Pasco</div>
-          <div class="ct-sub">Wesley Chapel · NPR · Holiday</div>
-          <div class="ct-arv">ARV $175–225/sqft</div>
-        </div>
+    <div class="market-hero">
+      <div class="market-hero-title" id="market-title">Pinellas County — Marktüberblick</div>
+      <div class="market-stats" id="mib"></div>
+    </div>
+
+    <div class="county-grid">
+      <div class="county-card active" id="ctab-pinellas" onclick="selectCounty('pinellas')">
+        <div class="cc-name">Pinellas</div>
+        <div class="cc-sub">St. Pete · Clearwater · Largo</div>
+        <div class="cc-arv">$200–265/sqft</div>
       </div>
-      <div class="sm-row" id="sm-row"></div>
-      <div class="mib" id="mib"></div>
+      <div class="county-card" id="ctab-hillsborough" onclick="selectCounty('hillsborough')">
+        <div class="cc-name">Hillsborough</div>
+        <div class="cc-sub">Tampa · Brandon · Riverview</div>
+        <div class="cc-arv">$215–280/sqft</div>
+      </div>
+      <div class="county-card" id="ctab-pasco" onclick="selectCounty('pasco')">
+        <div class="cc-name">Pasco</div>
+        <div class="cc-sub">Wesley Chapel · NPR · Holiday</div>
+        <div class="cc-arv">$175–225/sqft</div>
+      </div>
+    </div>
+
+    <div class="sm-row" id="sm-row"></div>
+
+    <div class="section">
       <div class="filter-row">
-        <div class="field"><label>Min. Preis ($)</label><input type="number" id="f-min" value="150000" placeholder="150000"></div>
-        <div class="field"><label>Max. Preis ($)</label><input type="number" id="f-max" value="420000" placeholder="420000"></div>
+        <div class="field"><label>Min. Preis ($)</label><input type="number" id="f-min" value="150000"></div>
+        <div class="field"><label>Max. Preis ($)</label><input type="number" id="f-max" value="420000"></div>
         <div class="field"><label>Min. Beds</label>
           <select id="f-beds"><option value="2">2+</option><option value="3" selected>3+</option><option value="4">4+</option></select>
         </div>
-        <div class="field"><label>Max. Days on Market</label><input type="number" id="f-dom" value="90" placeholder="90"></div>
+        <div class="field"><label>Max. Days on Market</label><input type="number" id="f-dom" value="90"></div>
       </div>
       <div class="err-box" id="search-err"></div>
       <button class="btn-primary" id="search-btn" onclick="doSearch()">ZILLOW DURCHSUCHEN →</button>
@@ -279,11 +316,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
 
   </div>
 
-  <!-- ═══ TAB: IMPORT ═══ -->
+  <!-- ═══ IMPORT ═══ -->
   <div class="tab-panel" id="panel-import">
 
     <div class="section">
-      <div class="slabel">📄 PDF-Upload (Exposé / MLS-Sheet)</div>
+      <div class="slabel">PDF-Upload (Exposé / MLS-Sheet)</div>
       <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
         <div class="upload-icon">📄</div>
         <div class="upload-label">PDF hierher ziehen oder klicken</div>
@@ -296,7 +333,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
     </div>
 
     <div class="section">
-      <div class="slabel">✉ Email-Anbindung (Makler-Emails)</div>
+      <div class="slabel">Email-Anbindung (Makler-Emails)</div>
       <div class="email-tabs">
         <div class="email-tab active" id="etab-paste" onclick="selectEmailTab('paste')">
           <div class="email-tab-label">✉ Email einfügen</div>
@@ -309,25 +346,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
       </div>
       <div class="paste-form show" id="paste-form">
         <div class="field">
-          <label>Email-Inhalt einfügen (von Makler / MLS-Alert)</label>
-          <textarea id="email-paste" rows="6" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:10px;resize:vertical" placeholder="Email-Text hier einfügen — z.B. Zillow/Redfin-Alert, Makler-Email, MLS-Benachrichtigung..."></textarea>
+          <label>Email-Inhalt einfügen</label>
+          <textarea id="email-paste" rows="6" style="background:#fff;border:1.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:10px;resize:vertical" placeholder="Email-Text hier einfügen — z.B. Zillow/Redfin-Alert, Makler-Email..."></textarea>
         </div>
         <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
       </div>
       <div class="imap-form" id="imap-form">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host" placeholder="imap.gmail.com" value="imap.gmail.com"></div>
-          <div class="field"><label>Port</label><input type="number" id="imap-port" placeholder="993" value="993"></div>
+          <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host" value="imap.gmail.com"></div>
+          <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div class="field"><label>Email-Adresse</label><input type="email" id="imap-user" placeholder="deine@gmail.com"></div>
           <div class="field"><label>App-Passwort</label><input type="password" id="imap-pass" placeholder="xxxx xxxx xxxx xxxx"></div>
         </div>
-        <div class="field">
-          <label>Suchbegriff</label>
-          <input type="text" id="imap-query" value="zillow.com OR redfin.com OR new listing">
-        </div>
-        <div style="font-size:10px;color:var(--muted);line-height:1.6;padding:8px;background:rgba(255,255,255,.02);border-radius:4px">
+        <div class="field"><label>Suchbegriff</label><input type="text" id="imap-query" value="zillow.com OR redfin.com OR new listing"></div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.6;padding:10px;background:var(--orange-bg);border-radius:8px;border:1px solid var(--orange-border)">
           💡 Gmail: Einstellungen → Sicherheit → App-Passwörter
         </div>
         <button class="btn-primary" onclick="scanIMAP()">POSTFACH SCANNEN →</button>
@@ -344,9 +378,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
 
   </div>
 
-  <!-- ═══ TAB: EINSTELLUNGEN ═══ -->
+  <!-- ═══ EINSTELLUNGEN ═══ -->
   <div class="tab-panel" id="panel-settings">
-
     <div class="config-panel">
       <div class="config-title">⚡ API-Konfiguration</div>
       <div class="config-grid" style="grid-template-columns:1fr auto">
@@ -358,24 +391,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
       </div>
       <div class="config-status" id="config-status"></div>
       <div class="config-hint">
-        🟢 <strong>Redfin-Daten:</strong> kein Key nötig —
-        Anthropic Key für KI-Analyse: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+        🟢 Redfin-Daten: kein Key nötig ·
+        Anthropic Key: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
       </div>
     </div>
-
   </div>
 
-  <!-- ═══ TAB: BENUTZER (nur Admin) ═══ -->
+  <!-- ═══ ADMIN ═══ -->
   <div class="tab-panel" id="panel-admin">
-
     <div class="section">
-      <div class="slabel">👤 Benutzerverwaltung</div>
+      <div class="slabel">Benutzerverwaltung</div>
       <div id="user-list" style="margin-bottom:12px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
         <div class="field"><label>Benutzername</label><input type="text" id="new-username" placeholder="username"></div>
         <div class="field"><label>Passwort</label><input type="password" id="new-password" placeholder="••••••••"></div>
         <div class="field"><label>Rolle</label>
-          <select id="new-role" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px">
+          <select id="new-role">
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
@@ -383,11 +414,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-si
         <button class="btn-save" onclick="addUser()">+ Hinzufügen</button>
       </div>
     </div>
-
   </div>
 
-
 </div>
+
 <script>
 const COUNTIES = {
   pinellas:     {name:'Pinellas County',medianPrice:381000,medianSqft:220,arvLow:200,arvHigh:265,avgDOM:16,belowAsk:55,yoy:'+5.3%',submarkets:['St. Petersburg','Clearwater','Largo','Dunedin','Pinellas Park','Safety Harbor','Tarpon Springs','Belleair','Seminole']},
@@ -415,6 +445,12 @@ function updateStatusBadges(anth) {
   document.getElementById('config-status').innerHTML =
     `<span class="status-item status-ok">✓ Redfin (kein Key nötig)</span>
      <span class="status-item ${anth?'status-ok':'status-err'}">${anth?'✓':'✗'} Anthropic KI</span>`;
+  // Update header avatar
+  const uname = document.getElementById('user-name');
+  if(uname && uname.textContent) {
+    const av = document.getElementById('user-avatar');
+    if(av) av.textContent = uname.textContent.slice(0,2).toUpperCase();
+  }
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -455,14 +491,13 @@ function toggleSubmarket(s) {
 
 function renderMIB() {
   const c = COUNTIES[county];
+  document.getElementById('market-title').textContent = c.name + ' — Marktüberblick';
   document.getElementById('mib').innerHTML = [
-    ['Median Preis', '$'+c.medianPrice.toLocaleString('de-DE')],
-    ['$/sqft Median', '$'+c.medianSqft],
-    ['ARV-Spanne', '$'+c.arvLow+'–$'+c.arvHigh+'/sqft'],
-    ['Ø DOM', c.avgDOM+' Tage'],
-    ['Unter Listenpreis', c.belowAsk+'%'],
-    ['YoY', c.yoy],
-  ].map(([l,v]) => `<div class="mib-item"><span class="mib-label">${l}</span><span class="mib-val">${v}</span></div>`).join('');
+    ['Median ARV', '$'+c.medianPrice.toLocaleString('de-DE'), 'o'],
+    ['$/sqft', '$'+c.medianSqft, 'b'],
+    ['Ø DOM', c.avgDOM+' Tage', 't'],
+    ['YoY', c.yoy, 'g'],
+  ].map(([l,v,cls]) => `<div class="mstat"><div class="mstat-l">${l}</div><div class="mstat-v ${cls}">${v}</div></div>`).join('');
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -518,42 +553,45 @@ function renderListings(items, source, warning) {
 
   const c = COUNTIES[county];
   document.getElementById('listings-list').innerHTML = items.map((l, i) => {
-    const arv     = Math.round((l.sqft||1200) * c.medianSqft * (l.year_built < 1975 ? 0.95 : l.year_built < 1995 ? 1.0 : 1.05));
-    const maxBuy  = Math.round(arv * 0.7 - 25000);
-    const delta   = l.price - maxBuy;
-    const dOk     = delta <= 0;
-    const score   = Math.min(100, Math.max(0, Math.round(
+    const arv    = Math.round((l.sqft||1200) * c.medianSqft * (l.year_built < 1975 ? 0.95 : l.year_built < 1995 ? 1.0 : 1.05));
+    const maxBuy = Math.round(arv * 0.7 - 25000);
+    const delta  = l.price - maxBuy;
+    const dOk    = delta <= 0;
+    const score  = Math.min(100, Math.max(0, Math.round(
       60 + (l.zestimate > 0 ? (l.zestimate - l.price) / l.price * 60 : 10)
-         - (l.year_built < 1970 ? 8 : 0)
-         + (l.dom > 60 ? 5 : 0)
+         - (l.year_built < 1970 ? 8 : 0) + (l.dom > 60 ? 5 : 0)
     )));
-    const sc = score >= 70 ? '#4af0a0' : score >= 50 ? '#f0c040' : '#f05050';
+    const verdict = score >= 70 ? 'GO' : score >= 50 ? 'MAYBE' : 'NO-GO';
+    const vClass  = score >= 70 ? 'tag-go' : score >= 50 ? 'tag-maybe' : 'tag-nogo';
+    const fillPct = score + '%';
+    const fillColor = score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--orange)' : 'var(--red)';
     return `
     <div class="listing-card">
       <div class="lc-top">
         <div style="flex:1;margin-right:12px">
           <div class="lc-addr">${l.address}</div>
-          <div class="lc-meta" style="margin-top:5px">
-            <span>${l.beds}bd / ${l.baths}ba</span>
-            ${l.sqft ? '<span>'+l.sqft.toLocaleString('de-DE')+' sqft</span>' : ''}
-            ${l.year_built ? '<span>Bj. '+l.year_built+'</span>' : ''}
-            ${l.price_sqft ? '<span>$'+l.price_sqft+'/sqft</span>' : ''}
-          </div>
+          <div class="lc-meta">${l.beds}bd / ${l.baths}ba${l.sqft?' · '+l.sqft.toLocaleString('de-DE')+' sqft':''}${l.year_built?' · Bj. '+l.year_built:''}${l.price_sqft?' · $'+l.price_sqft+'/sqft':''}</div>
         </div>
         <div>
           <div class="lc-price">${fmt(l.price)}</div>
-          ${l.zestimate ? '<div class="lc-zest">Zestimate: '+fmt(l.zestimate)+'</div>' : ''}
+          <div class="lc-arv">ARV ~${fmt(arv)}</div>
         </div>
       </div>
-      <div class="lc-tags">
-        <span class="tag tag-yellow">ARV ~${fmt(arv)}</span>
-        <span class="tag tag-yellow">Max: ${fmt(maxBuy)}</span>
-        <span class="tag ${dOk?'tag-green':'tag-red'}">${dOk ? fmt(Math.abs(delta))+' unter Max' : fmt(delta)+' über Max'}</span>
-        <span class="tag ${l.dom>60?'tag-green':'tag-blue'}">${l.dom} Tage on market</span>
-        <span class="tag tag-gray" style="color:${sc}">Score ~${score}</span>
-        ${l.zillow_url ? '<a href="'+l.zillow_url+'" target="_blank" class="tag tag-blue" style="text-decoration:none">↗ Zillow</a>' : ''}
+      <div class="lc-bottom">
+        <div class="lc-tags">
+          <span class="tag ${vClass}">${verdict}</span>
+          <span class="tag tag-dom">${l.dom} DOM</span>
+          <span class="tag tag-blue">${dOk?'+'+fmt(Math.abs(delta))+' Marge':fmt(delta)+' über Max'}</span>
+          ${l.listing_url?'<a href="'+l.listing_url+'" target="_blank" class="tag tag-gray" style="text-decoration:none">↗ Link</a>':''}
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar"><div class="score-fill" style="width:${fillPct};background:${fillColor}"></div></div>
+          <div class="score-txt">${score}/100</div>
+        </div>
       </div>
-      <button class="btn-analyze" onclick="doAnalyze(${i})">→ VOLLANALYSE MIT KI STARTEN</button>
+      <div style="padding:0 14px 12px">
+        <button class="btn-analyze" onclick="doAnalyze(${i})">→ VOLLANALYSE MIT KI STARTEN</button>
+      </div>
     </div>`;
   }).join('');
   document.getElementById('listings-wrap').style.display = 'block';
@@ -721,7 +759,10 @@ async function loadUserInfo() {
     const r = await fetch('/api/me');
     if(r.status === 401) { window.location.href = '/login'; return; }
     const d = await r.json();
-    document.getElementById('user-name').textContent = d.name || d.username;
+    const name = d.name || d.username;
+    document.getElementById('user-name').textContent = name;
+    const av = document.getElementById('user-avatar');
+    if(av) av.textContent = name.slice(0,2).toUpperCase();
     if(d.role === 'admin') {
       document.getElementById('tab-admin').style.display = 'flex';
       loadUsers();
