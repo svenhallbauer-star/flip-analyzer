@@ -713,14 +713,47 @@ def scan_imap():
         if not email_texts:
             return jsonify({"listings": [], "message": "Keine passenden Emails gefunden."})
 
-        # Analyze combined email content
+        # Analyze combined email content directly (no localhost call)
         combined_text = "\n\n---\n\n".join(email_texts[:5])
-        inner_resp = requests.post(
-            f"http://localhost:{os.environ.get('PORT', 5000)}/api/analyze-email",
-            json={"email_text": combined_text, "county_key": county_key},
-            timeout=55
-        )
-        return inner_resp.json()
+        county = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
+
+        prompt = f"""Analysiere diesen Email-Text von einem Makler oder einer Immobilien-Plattform.
+Extrahiere alle Immobilien-Listings die du findest.
+
+Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft)
+
+Antworte NUR mit validem JSON (kein Markdown):
+{{
+  "listings": [
+    {{
+      "address": "<Adresse>",
+      "price": <Preis>,
+      "beds": <Beds>,
+      "baths": <Baths>,
+      "sqft": <sqft oder 0>,
+      "year_built": <Jahr oder 0>,
+      "dom": 0,
+      "price_sqft": 0,
+      "county": "{county_key}",
+      "listing_url": "<URL falls vorhanden>",
+      "source": "email",
+      "notes": "<Zusatzinfos>",
+      "zestimate": 0
+    }}
+  ]
+}}
+
+Email-Text:
+{combined_text[:4000]}"""
+
+        resp = _anthropic_post({
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 1500,
+            "system": "Du bist Immobilien-Daten-Extraktor. Antworte NUR mit validem JSON.",
+            "messages": [{"role": "user", "content": prompt}]
+        })
+        raw = resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
+        return jsonify(json.loads(raw))
 
     except imaplib.IMAP4.error as e:
         return jsonify({"error": f"IMAP-Fehler: {e}. Bitte App-Passwort prüfen."}), 400
