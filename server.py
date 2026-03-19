@@ -670,8 +670,28 @@ def scan_imap():
     query      = data.get("query", "redfin.com OR zillow.com")
     county_key = data.get("county_key", "pinellas")
 
+    # Falls leer, aus DB laden
+    if not user or not password:
+        _ensure_settings_table()
+        saved = _load_user_settings(session.get("username", "default")).get("imap", {})
+        if not user:
+            user = saved.get("user", "")
+        if not password:
+            password = saved.get("password", "")
+        if not host or host == "imap.gmail.com":
+            host = saved.get("host", "imap.gmail.com")
+        if not query:
+            query = saved.get("query", "")
+
     if not user or not password:
         return jsonify({"error": "Email und Passwort erforderlich."}), 400
+
+    # Zugangsdaten persistent speichern
+    _ensure_settings_table()
+    username = session.get("username", "default")
+    settings = _load_user_settings(username)
+    settings["imap"] = {"host": host, "port": port, "user": user, "password": password, "query": query}
+    _save_user_settings(username, settings)
 
     try:
         mail = imaplib.IMAP4_SSL(host, port)
@@ -752,7 +772,34 @@ def scan_imap():
                         except:
                             pass
 
-                    email_texts.append(f"Von: {sender}\nBetreff: {subject}\n\n{full_body}")
+                    # PDF-Anhaenge extrahieren
+                    pdf_texts = []
+                    for part in msg.walk():
+                        if part.get_content_type() == "application/pdf" or                            (part.get_filename() and part.get_filename().lower().endswith(".pdf")):
+                            try:
+                                pdf_data = part.get_payload(decode=True)
+                                if pdf_data:
+                                    pdf_b64 = base64.b64encode(pdf_data).decode("utf-8")
+                                    # PDF via Claude analysieren
+                                    pdf_resp = _anthropic_post({
+                                        "model": "claude-sonnet-4-5",
+                                        "max_tokens": 800,
+                                        "messages": [{"role": "user", "content": [
+                                            {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64}},
+                                            {"type": "text", "text": "Extrahiere alle Immobiliendaten aus diesem Dokument: Adresse, Preis, Groesse, Zimmer, Baujahr, Zustand, Besonderheiten. Antworte auf Deutsch."}
+                                        ]}]
+                                    })
+                                    pdf_text = pdf_resp.json()["content"][0]["text"]
+                                    pdf_texts.append(f"[PDF-Anhang: {part.get_filename()}]\n{pdf_text}")
+                                    print(f"  PDF-Anhang analysiert: {part.get_filename()}")
+                            except Exception as pe:
+                                print(f"  PDF-Fehler: {pe}")
+
+                    combined_content = f"Von: {sender}\nBetreff: {subject}\n\n{full_body}"
+                    if pdf_texts:
+                        combined_content += "\n\n" + "\n\n".join(pdf_texts)
+
+                    email_texts.append(combined_content)
                     print(f"  Email gefunden: {subject[:60]}")
             except Exception as e:
                 print(f"  Email-Fehler: {e}")
@@ -916,6 +963,120 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── IMAP Credentials (persistent in Postgres) ─────────────────────────────────
+
+def _get_db_conn():
+    """Datenbankverbindung holen."""
+    import psycopg2
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        return None
+    return psycopg2.connect(db_url)
+
+def _ensure_settings_table():
+    """Erstellt Settings-Tabelle falls nicht vorhanden."""
+    try:
+        conn = _get_db_conn()
+        if not conn:
+            return
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    username    TEXT PRIMARY KEY,
+                    settings    JSONB NOT NULL DEFAULT '{}',
+                    updated_at  TIMESTAMP DEFAULT NOW()
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Settings table error: {e}")
+
+def _load_user_settings(username):
+    """Laedt User-Settings aus DB."""
+    try:
+        conn = _get_db_conn()
+        if not conn:
+            return {}
+        with conn.cursor() as cur:
+            cur.execute("SELECT settings FROM user_settings WHERE username = %s", (username,))
+            row = cur.fetchone()
+        conn.close()
+        return row[0] if row else {}
+    except Exception as e:
+        print(f"Load settings error: {e}")
+        return {}
+
+def _save_user_settings(username, settings):
+    """Speichert User-Settings in DB."""
+    try:
+        conn = _get_db_conn()
+        if not conn:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_settings (username, settings, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (username) DO UPDATE
+                SET settings = %s, updated_at = NOW()
+            """, (username, json.dumps(settings), json.dumps(settings)))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Save settings error: {e}")
+        return False
+
+
+@app.route("/api/imap-credentials", methods=["GET"])
+@login_required
+def get_imap_credentials():
+    """Gibt gespeicherte IMAP-Zugangsdaten zurueck."""
+    _ensure_settings_table()
+    username = session.get("username", "default")
+    settings = _load_user_settings(username)
+    creds = settings.get("imap", {})
+    if creds:
+        return jsonify({
+            "host":     creds.get("host", "imap.gmail.com"),
+            "port":     creds.get("port", 993),
+            "user":     creds.get("user", ""),
+            "password": creds.get("password", ""),
+            "query":    creds.get("query", "zillow.com OR redfin.com OR new listing"),
+            "saved":    True
+        })
+    return jsonify({"saved": False})
+
+@app.route("/api/imap-credentials", methods=["POST"])
+@login_required
+def save_imap_credentials():
+    """Speichert IMAP-Zugangsdaten persistent in Postgres."""
+    _ensure_settings_table()
+    data = request.json or {}
+    username = session.get("username", "default")
+    settings = _load_user_settings(username)
+    settings["imap"] = {
+        "host":     data.get("host", "imap.gmail.com"),
+        "port":     int(data.get("port", 993)),
+        "user":     data.get("user", ""),
+        "password": data.get("password", ""),
+        "query":    data.get("query", "")
+    }
+    _save_user_settings(username, settings)
+    return jsonify({"ok": True})
+
+@app.route("/api/imap-credentials", methods=["DELETE"])
+@login_required
+def delete_imap_credentials():
+    """Loescht gespeicherte IMAP-Zugangsdaten."""
+    _ensure_settings_table()
+    username = session.get("username", "default")
+    settings = _load_user_settings(username)
+    settings.pop("imap", None)
+    _save_user_settings(username, settings)
+    return jsonify({"ok": True})
 
 
 # ── Zillow Foto-Analyse ────────────────────────────────────────────────────────
