@@ -678,35 +678,85 @@ def scan_imap():
         mail.login(user, password)
         mail.select("INBOX")
 
-        # Search last 30 days for real estate emails
+        # Search all emails since Jan 2026 - no keyword filter at IMAP level
         _, msg_ids = mail.search(None, 'SINCE "01-Jan-2026"')
-        ids = msg_ids[0].split()[-20:]  # last 20 matching emails
+        all_ids = msg_ids[0].split()
+        # Take last 50 emails
+        ids = all_ids[-50:]
 
         email_texts = []
+        keywords = [q.strip().lower() for q in query.replace(" OR ", "|").split("|")]
+
         for mid in ids:
-            _, msg_data = mail.fetch(mid, "(RFC822)")
-            msg = email_lib.message_from_bytes(msg_data[0][1])
-            subject = decode_header(msg["Subject"] or "")[0][0]
-            if isinstance(subject, bytes):
-                subject = subject.decode(errors="ignore")
-            sender  = msg.get("From", "")
+            try:
+                _, msg_data = mail.fetch(mid, "(RFC822)")
+                msg = email_lib.message_from_bytes(msg_data[0][1])
 
-            # Filter by query keywords
-            keywords = [q.strip().lower() for q in query.replace(" OR ", "|").split("|")]
-            combined = (subject + sender).lower()
-            if not any(kw in combined for kw in keywords):
+                # Decode subject safely
+                raw_subject = msg.get("Subject", "") or ""
+                try:
+                    subject_parts = decode_header(raw_subject)
+                    subject = ""
+                    for part, enc in subject_parts:
+                        if isinstance(part, bytes):
+                            subject += part.decode(enc or "utf-8", errors="ignore")
+                        else:
+                            subject += str(part)
+                except:
+                    subject = raw_subject
+
+                sender = msg.get("From", "") or ""
+
+                # Filter by keywords in subject OR sender OR body snippet
+                combined = (subject + sender).lower()
+
+                # Also check body for keywords
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        ct = part.get_content_type()
+                        if ct == "text/plain":
+                            try:
+                                body = part.get_payload(decode=True).decode(errors="ignore")[:500]
+                            except:
+                                pass
+                            break
+                        elif ct == "text/html" and not body:
+                            try:
+                                body = part.get_payload(decode=True).decode(errors="ignore")[:200]
+                            except:
+                                pass
+                else:
+                    try:
+                        body = msg.get_payload(decode=True).decode(errors="ignore")[:500]
+                    except:
+                        pass
+
+                combined_full = (combined + body.lower())
+
+                # Match if ANY keyword found, or if query is empty/wildcard
+                if query.strip() == "*" or not keywords or any(kw in combined_full for kw in keywords):
+                    # Get full body
+                    full_body = ""
+                    if msg.is_multipart():
+                        for part in msg.walk():
+                            if part.get_content_type() == "text/plain":
+                                try:
+                                    full_body = part.get_payload(decode=True).decode(errors="ignore")[:3000]
+                                except:
+                                    pass
+                                break
+                    else:
+                        try:
+                            full_body = msg.get_payload(decode=True).decode(errors="ignore")[:3000]
+                        except:
+                            pass
+
+                    email_texts.append(f"Von: {sender}\nBetreff: {subject}\n\n{full_body}")
+                    print(f"  Email gefunden: {subject[:60]}")
+            except Exception as e:
+                print(f"  Email-Fehler: {e}")
                 continue
-
-            body = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get_content_type() == "text/plain":
-                        body = part.get_payload(decode=True).decode(errors="ignore")[:2000]
-                        break
-            else:
-                body = msg.get_payload(decode=True).decode(errors="ignore")[:2000]
-
-            email_texts.append(f"Von: {sender}\nBetreff: {subject}\n\n{body}")
 
         mail.logout()
 
