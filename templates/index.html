@@ -1186,7 +1186,7 @@ async function loadIMAPCredentials() {
       document.getElementById('imap-host').value  = d.host  || 'imap.gmail.com';
       document.getElementById('imap-port').value  = d.port  || 993;
       document.getElementById('imap-user').value  = d.user  || '';
-      document.getElementById('imap-pass').placeholder = '•••••••• (gespeichert)';
+      document.getElementById('imap-pass').value = d.password || '';
       document.getElementById('imap-query').value = d.query || '';
       const banner = document.getElementById('imap-saved-banner');
       if(banner) { banner.style.display = 'flex'; }
@@ -1268,15 +1268,18 @@ function showEmailListings(items) {
   if(!items.length) { alert('Keine Immobilien-Listings in den Emails gefunden.'); return; }
   const container = document.getElementById('email-listings-list');
   container.innerHTML = items.map((l,i) => `
-    <div class="email-listing-item" onclick="addEmailListing(${i})">
-      <div class="lc-addr">${l.address || 'Adresse unbekannt'}</div>
-      <div class="lc-meta" style="margin-top:4px">
-        ${l.price ? '<span>'+fmt(l.price)+'</span>' : ''}
-        ${l.beds ? '<span>'+l.beds+'bd</span>' : ''}
-        ${l.sqft ? '<span>'+l.sqft+' sqft</span>' : ''}
-        ${l.source ? '<span style="color:var(--accent2)">✉ '+l.source+'</span>' : ''}
+    <div class="email-listing-item" onclick="addEmailListing(${i})" style="cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="lc-addr">${l.address || 'Adresse unbekannt'}</div>
+          <div class="lc-meta" style="margin-top:4px">
+            ${l.price ? '<span>'+fmt(l.price)+'</span>' : ''}
+            ${l.beds ? '<span>'+l.beds+'bd</span>' : ''}
+            ${l.sqft ? '<span>'+l.sqft+' sqft</span>' : ''}
+          </div>
+        </div>
+        <button style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">KI-Analyse →</button>
       </div>
-      <div style="font-size:10px;color:var(--accent);margin-top:5px">→ Klicken zum Analysieren</div>
     </div>`).join('');
   document.getElementById('email-result').classList.add('show');
   // also add to global listings
@@ -1288,10 +1291,13 @@ function addEmailListing(i) {
   const l = emailListingsCache[i];
   if(!l) return;
   listings.unshift(l);
+  // Switch to search tab to show listing
+  switchTab('search');
   document.getElementById('listings-wrap').style.display = 'block';
   document.getElementById('listing-count').textContent = listings.length;
   renderListings(listings, 'email', null);
-  document.getElementById('listings-wrap').scrollIntoView({behavior:'smooth'});
+  // Auto-trigger KI analysis
+  setTimeout(() => doAnalyze(0), 300);
 }
 </script>
 </body>
