@@ -375,6 +375,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
       </div>
       <div class="imap-form" id="imap-form">
+        <div id="imap-saved-banner" style="display:none;background:var(--green-bg);border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:11px;color:var(--green-text);display:flex;justify-content:space-between;align-items:center">
+          <span>✓ Zugangsdaten gespeichert</span>
+          <span style="cursor:pointer;color:var(--red-text)" onclick="clearIMAPCredentials()">✕ Löschen</span>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host" value="imap.gmail.com"></div>
           <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
@@ -385,7 +389,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         </div>
         <div class="field"><label>Suchbegriff</label><input type="text" id="imap-query" value="zillow.com OR redfin.com OR new listing"></div>
         <div style="font-size:10px;color:var(--muted);line-height:1.6;padding:10px;background:var(--orange-bg);border-radius:8px;border:1px solid var(--orange-border)">
-          💡 Gmail: Einstellungen → Sicherheit → App-Passwörter
+          💡 Gmail: Einstellungen → Sicherheit → App-Passwörter · Zugangsdaten werden automatisch gespeichert
         </div>
         <button class="btn-primary" onclick="scanIMAP()">POSTFACH SCANNEN →</button>
       </div>
@@ -777,6 +781,7 @@ function switchTab(tab) {
     const btn = document.getElementById('tab-'+t);
     if(btn) btn.classList.toggle('active', t===tab);
   });
+  if(tab === 'import') loadIMAPCredentials();
 }
 
 // ── User Management ───────────────────────────────────────────────────────────
@@ -1170,6 +1175,32 @@ function fileToBase64(file) {
     r.onerror = () => rej(new Error('Lesefehler'));
     r.readAsDataURL(file);
   });
+}
+
+// ── IMAP Credentials ─────────────────────────────────────────────────────────
+async function loadIMAPCredentials() {
+  try {
+    const r = await fetch('/api/imap-credentials');
+    const d = await r.json();
+    if(d.saved) {
+      document.getElementById('imap-host').value  = d.host  || 'imap.gmail.com';
+      document.getElementById('imap-port').value  = d.port  || 993;
+      document.getElementById('imap-user').value  = d.user  || '';
+      document.getElementById('imap-pass').placeholder = '•••••••• (gespeichert)';
+      document.getElementById('imap-query').value = d.query || '';
+      const banner = document.getElementById('imap-saved-banner');
+      if(banner) { banner.style.display = 'flex'; }
+    }
+  } catch(e) {}
+}
+
+async function clearIMAPCredentials() {
+  await fetch('/api/imap-credentials', {method:'DELETE'});
+  document.getElementById('imap-user').value = '';
+  document.getElementById('imap-pass').value = '';
+  document.getElementById('imap-pass').placeholder = 'xxxx xxxx xxxx xxxx';
+  const banner = document.getElementById('imap-saved-banner');
+  if(banner) banner.style.display = 'none';
 }
 
 // ── Email Anbindung ───────────────────────────────────────────────────────────
