@@ -795,12 +795,93 @@ def scan_imap():
                             except Exception as pe:
                                 print(f"  PDF-Fehler: {pe}")
 
+                    # Zillow/Redfin Links aus Email extrahieren und abrufen
+                    import re
+                    link_texts = []
+                    all_content = full_body
+                    # HTML body auch prüfen
+                    html_body = ""
+                    if msg.is_multipart():
+                        for part in msg.walk():
+                            if part.get_content_type() == "text/html":
+                                try:
+                                    html_body = part.get_payload(decode=True).decode(errors="ignore")
+                                except:
+                                    pass
+                                break
+                    
+                    search_text = full_body + html_body
+                    # Zillow und Redfin URLs finden
+                    urls = re.findall("https?://(?:www[.])?(?:zillow[.]com|redfin[.]com)/[^ \t\n\"<>]+", search_text)
+                    urls = list(set(urls))[:5]  # max 5 unique URLs
+                    
+                    for url in urls:
+                        try:
+                            print(f"  Link abrufen: {url[:80]}")
+                            rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
+                            
+                            # Zillow URL: zpid extrahieren
+                            zpid_match = re.search(r'/(\d+)_zpid', url)
+                            if zpid_match and rapidapi_key:
+                                zpid = zpid_match.group(1)
+                                r = requests.get(
+                                    "https://real-time-real-estate-data.p.rapidapi.com/property-details",
+                                    headers={"x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
+                                             "x-rapidapi-key": rapidapi_key},
+                                    params={"zpid": zpid},
+                                    timeout=15
+                                )
+                                if r.ok:
+                                    d = r.json().get("data", r.json())
+                                    addr = d.get("address", {})
+                                    if isinstance(addr, dict):
+                                        address = f"{addr.get('streetAddress','')}, {addr.get('city','')}, {addr.get('state','FL')} {addr.get('zipcode','')}"
+                                    else:
+                                        address = str(addr)
+                                    
+                                    # Fotos sammeln
+                                    photos = []
+                                    for field in ["carouselPhotos", "responsivePhotos", "photos"]:
+                                        raw = d.get(field, [])
+                                        if raw:
+                                            for p in raw:
+                                                u = p.get("url","") if isinstance(p,dict) else str(p)
+                                                if u and u.startswith("http"):
+                                                    photos.append(u)
+                                            if photos:
+                                                break
+                                    
+                                    link_info = f"""[Zillow Link: {url}]
+Adresse: {address}
+Preis: ${d.get('price', d.get('listPrice', 0)):,}
+Betten: {d.get('bedrooms', 0)} | Bäder: {d.get('bathrooms', 0)}
+Wohnfläche: {d.get('livingArea', 0)} sqft
+Baujahr: {d.get('yearBuilt', 0)}
+Fotos: {len(photos)} verfügbar
+ZPID: {zpid}"""
+                                    link_texts.append(link_info)
+                                    print(f"  Zillow-Daten geladen: {address[:50]}")
+                            else:
+                                # Direkt URL-Inhalt holen
+                                r = requests.get(url, timeout=10, headers={
+                                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+                                })
+                                if r.ok:
+                                    # Nur Text extrahieren
+                                    text = re.sub(r'<[^>]+>', ' ', r.text)
+                                    text = re.sub(r'\s+', ' ', text)[:1000]
+                                    link_texts.append("[Link-Inhalt: " + url + "]\n" + text)
+                        except Exception as le:
+                            print(f"  Link-Fehler: {le}")
+
                     combined_content = f"Von: {sender}\nBetreff: {subject}\n\n{full_body}"
                     if pdf_texts:
                         combined_content += "\n\n" + "\n\n".join(pdf_texts)
+                    if link_texts:
+                        combined_content += "\n\n=== GEFUNDENE LINKS ===\n" + "\n\n".join(link_texts)
 
                     email_texts.append(combined_content)
-                    print(f"  Email gefunden: {subject[:60]}")
+                    print(f"  Email gefunden: {subject[:60]} | PDFs: {len(pdf_texts)} | Links: {len(link_texts)}")
             except Exception as e:
                 print(f"  Email-Fehler: {e}")
                 continue
@@ -814,27 +895,32 @@ def scan_imap():
         combined_text = "\n\n---\n\n".join(email_texts[:5])
         county = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
 
-        prompt = f"""Analysiere diesen Email-Text von einem Makler oder einer Immobilien-Plattform.
-Extrahiere alle Immobilien-Listings die du findest.
+        prompt = f"""Analysiere diesen Email-Text und extrahiere ALLE Immobilien-Listings.
+Nutze ALLE verfuegbaren Informationen inkl. PDF-Inhalte und Zillow-Link-Daten.
 
 Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft)
+
+WICHTIG: Wenn Preis, sqft oder andere Daten aus den Zillow-Links oder PDFs verfuegbar sind, 
+verwende diese Werte. Schaetze fehlende Werte basierend auf dem Markt.
 
 Antworte NUR mit validem JSON (kein Markdown):
 {{
   "listings": [
     {{
-      "address": "<Adresse>",
-      "price": <Preis>,
-      "beds": <Beds>,
-      "baths": <Baths>,
-      "sqft": <sqft oder 0>,
-      "year_built": <Jahr oder 0>,
+      "address": "<vollstaendige Adresse>",
+      "price": <Kaufpreis als Zahl, NIEMALS 0 wenn bekannt>,
+      "beds": <Schlafzimmer>,
+      "baths": <Bäder>,
+      "sqft": <Wohnflaeche, schaetze basierend auf Beds/Baths wenn unbekannt>,
+      "year_built": <Baujahr oder 0>,
       "dom": 0,
-      "price_sqft": 0,
+      "price_sqft": <Preis/sqft oder 0>,
       "county": "{county_key}",
-      "listing_url": "<URL falls vorhanden>",
+      "listing_url": "<Zillow/Redfin URL falls vorhanden>",
+      "zpid": "<Zillow ZPID falls vorhanden, sonst leer>",
+      "photos": [],
       "source": "email",
-      "notes": "<Zusatzinfos>",
+      "notes": "<Zustand, Besonderheiten, Schäden>",
       "zestimate": 0
     }}
   ]
