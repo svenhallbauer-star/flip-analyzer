@@ -335,13 +335,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
           <div id="email-listings-list"></div>
         </div>
       </div>
-      <div class="section">
-        <div class="slabel">Email-Text einfügen</div>
-        <div class="field">
-          <textarea id="email-paste" rows="4" style="background:#fff;border:1.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:10px;resize:vertical;width:100%" placeholder="Email-Text einfügen — Zillow/Redfin-Alert, Makler-Email..."></textarea>
-        </div>
-        <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
-      </div>
+
     </div>
 
     <!-- PDF + BILD SECTION -->
@@ -522,6 +516,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
     </div>
 
     <div class="section">
+      <div class="slabel">📱 WhatsApp Benachrichtigungen</div>
+      <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--blue-bg);border-radius:8px;border:1px solid var(--border2);margin-bottom:10px;line-height:1.6">
+        Automatische Benachrichtigung via <strong>Twilio WhatsApp</strong> wenn neue Objekte gefunden werden.<br>
+        Konto erstellen: <a href="https://www.twilio.com/whatsapp" target="_blank" style="color:var(--blue)">twilio.com/whatsapp</a>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="field"><label>Twilio Account SID</label><input type="password" id="twilio-sid" placeholder="ACxxxxxxxx"></div>
+        <div class="field"><label>Twilio Auth Token</label><input type="password" id="twilio-token" placeholder="xxxxxxxx"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="field"><label>Von (Twilio WhatsApp)</label><input type="text" id="twilio-from" placeholder="whatsapp:+14155238886"></div>
+        <div class="field"><label>An (deine Nummer)</label><input type="text" id="twilio-to" placeholder="whatsapp:+49176xxxxxxxx"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-save" style="flex:1;height:auto;padding:10px" onclick="saveTwilioSettings()">SPEICHERN</button>
+        <button class="btn-save" style="flex:1;height:auto;padding:10px;background:var(--blue-bg);border-color:var(--border2);color:var(--blue)" onclick="testWhatsApp()">TEST SENDEN</button>
+      </div>
+      <div id="twilio-status" style="margin-top:8px;font-size:11px"></div>
+    </div>
+
+    <div class="section">
+      <div class="slabel">⏰ Automatischer Scan (2x täglich)</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px">
+        Der automatische Scan läuft täglich um <strong style="color:var(--text)">8:00 Uhr</strong> und <strong style="color:var(--text)">18:00 Uhr</strong> (UTC).<br>
+        Neue Objekte werden per WhatsApp gemeldet.<br>
+        Aktivierung: In Railway → Variables → <code style="background:var(--border);padding:1px 5px;border-radius:3px">AUTO_SCAN=true</code> setzen
+      </div>
+    </div>
+
+    <div class="section">
       <div class="slabel">🔍 Zillow Suchfilter (Standard)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="field"><label>Min. Preis ($)</label><input type="number" id="f-min" value="150000"></div>
@@ -573,6 +597,7 @@ window.onload = async () => {
   renderMIB();
   loadUserInfo();
   loadIMAPCredentials();
+  loadTwilioSettings();
   try {
     const r = await fetch('/api/config');
     const d = await r.json();
@@ -894,6 +919,7 @@ function switchTab(tab) {
     if(btn) btn.classList.toggle('active', t===tab);
   });
   if(tab === 'search') loadIMAPCredentials();
+  if(tab === 'settings') { loadIMAPCredentials(); loadTwilioSettings(); }
 }
 
 // ── User Management ───────────────────────────────────────────────────────────
@@ -1365,6 +1391,43 @@ async function analyzeAll() {
   btn.disabled = false;
   btn.textContent = '🔍 NOCHMAL ANALYSIEREN';
   addStep('✅', 'Analyse abgeschlossen!');
+}
+
+async function saveTwilioSettings() {
+  const data = {
+    sid:   document.getElementById('twilio-sid').value.trim(),
+    token: document.getElementById('twilio-token').value.trim(),
+    from:  document.getElementById('twilio-from').value.trim(),
+    to:    document.getElementById('twilio-to').value.trim()
+  };
+  if(!data.sid || !data.token || !data.to) { alert('Bitte alle Felder ausfüllen.'); return; }
+  await fetch('/api/twilio-settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  document.getElementById('twilio-status').innerHTML = '<span style="color:var(--green-text)">✓ Gespeichert</span>';
+}
+
+async function testWhatsApp() {
+  const status = document.getElementById('twilio-status');
+  status.innerHTML = '<span style="color:var(--muted)">Sende Test...</span>';
+  try {
+    const r = await fetch('/api/whatsapp-test', {method:'POST', headers:{'Content-Type':'application/json'}});
+    const d = await r.json();
+    status.innerHTML = d.ok ? '<span style="color:var(--green-text)">✓ Test-Nachricht gesendet!</span>' : '<span style="color:var(--red-text)">Fehler: ' + d.error + '</span>';
+  } catch(e) {
+    status.innerHTML = '<span style="color:var(--red-text)">Fehler: ' + e.message + '</span>';
+  }
+}
+
+async function loadTwilioSettings() {
+  try {
+    const r = await fetch('/api/twilio-settings');
+    const d = await r.json();
+    if(d.saved) {
+      document.getElementById('twilio-sid').value = d.sid||'';
+      document.getElementById('twilio-token').value = d.token||'';
+      document.getElementById('twilio-from').value = d.from||'';
+      document.getElementById('twilio-to').value = d.to||'';
+    }
+  } catch(e) {}
 }
 
 async function saveIMAPSettings() {
