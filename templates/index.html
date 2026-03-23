@@ -242,21 +242,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <!-- NAV -->
   <div class="nav">
-    <div class="nav-item active" id="tab-search" onclick="switchTab('search')">🔍 Suche</div>
-    <div class="nav-item" id="tab-import" onclick="switchTab('import')">📥 Import</div>
+    <div class="nav-item active" id="tab-search" onclick="switchTab('search')">🏠 Dashboard</div>
     <div class="nav-item" id="tab-settings" onclick="switchTab('settings')">⚙️ Einstellungen</div>
     <div class="nav-item" id="tab-admin" onclick="switchTab('admin')" style="display:none">👤 Benutzer</div>
   </div>
 
-  <!-- ═══ SUCHE ═══ -->
+  <!-- ═══ DASHBOARD ═══ -->
   <div class="tab-panel active" id="panel-search">
+
+    <!-- Schnellzugriff Kacheln -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      <div onclick="document.getElementById('section-zillow').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:24px;margin-bottom:6px">🏡</div>
+        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)">Zillow Suche</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">Listings durchsuchen</div>
+      </div>
+      <div onclick="document.getElementById('section-email').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:24px;margin-bottom:6px">✉️</div>
+        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)">E-Mail Analyse</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">Gmail / Makler-Emails</div>
+      </div>
+      <div onclick="document.getElementById('section-pdf').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:24px;margin-bottom:6px">📄</div>
+        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)">PDF / Bild Upload</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">Exposé & Foto-Analyse</div>
+      </div>
+    </div>
 
     <div class="market-hero">
       <div class="market-hero-title" id="market-title">Pinellas County — Marktüberblick</div>
       <div class="market-stats" id="mib"></div>
     </div>
 
-    <div class="county-grid">
+    <div id="section-zillow" class="county-grid">
       <div class="county-card active" id="ctab-pinellas" onclick="selectCounty('pinellas')">
         <div class="cc-name">Pinellas</div>
         <div class="cc-sub">St. Pete · Clearwater · Largo</div>
@@ -314,17 +332,104 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <div id="analysis-content"></div>
     </div>
 
+    <!-- E-MAIL SECTION -->
+    <div id="section-email" style="margin-top:8px">
+      <div style="display:flex;align-items:center;gap:10px;margin:20px 0 10px">
+        <div style="height:1px;background:var(--border);flex:1"></div>
+        <div style="font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px">✉ E-Mail Analyse</div>
+        <div style="height:1px;background:var(--border);flex:1"></div>
+      </div>
+      <div class="section">
+        <div class="slabel">Gmail / IMAP scannen</div>
+        <div id="imap-saved-banner" style="display:none;background:var(--green-bg);border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:11px;color:var(--green-text);margin-bottom:10px;justify-content:space-between;align-items:center">
+          <span>✓ Zugangsdaten gespeichert</span>
+          <span style="cursor:pointer;color:var(--red-text)" onclick="clearIMAPCredentials()">✕ Löschen</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host" value="imap.gmail.com"></div>
+          <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="field"><label>Email-Adresse</label><input type="email" id="imap-user" placeholder="deine@gmail.com"></div>
+          <div class="field"><label>App-Passwort</label><input type="password" id="imap-pass" placeholder="xxxx xxxx xxxx xxxx"></div>
+        </div>
+        <div class="field" style="margin-bottom:8px"><label>Suchbegriff (* = alle)</label><input type="text" id="imap-query" value="Expose OR zillow.com OR new listing"></div>
+        <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--orange-bg);border-radius:8px;border:1px solid var(--orange-border);margin-bottom:8px">
+          💡 Gmail App-Passwort: myaccount.google.com/apppasswords
+        </div>
+        <button class="btn-primary" onclick="scanIMAP()">POSTFACH SCANNEN →</button>
+        <div class="loading" id="email-loading" style="padding:20px">
+          <div class="spinner"></div>
+          <div class="load-sub" id="email-load-text">Emails werden analysiert...</div>
+        </div>
+        <div class="email-result" id="email-result">
+          <div class="email-result-title">Gefundene Objekte aus Emails</div>
+          <div id="email-listings-list"></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="slabel">Email-Text einfügen</div>
+        <div class="field">
+          <textarea id="email-paste" rows="4" style="background:#fff;border:1.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:10px;resize:vertical;width:100%" placeholder="Email-Text einfügen — Zillow/Redfin-Alert, Makler-Email..."></textarea>
+        </div>
+        <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
+      </div>
+    </div>
+
+    <!-- PDF + BILD SECTION -->
+    <div id="section-pdf" style="margin-top:8px">
+      <div style="display:flex;align-items:center;gap:10px;margin:20px 0 10px">
+        <div style="height:1px;background:var(--border);flex:1"></div>
+        <div style="font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px">📄 PDF & Bild Analyse</div>
+        <div style="height:1px;background:var(--border);flex:1"></div>
+      </div>
+      <div class="section">
+        <div class="slabel">PDF-Upload (Exposé / MLS-Sheet)</div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+          <div class="upload-icon">📄</div>
+          <div class="upload-label">PDF hierher ziehen oder klicken</div>
+          <div class="upload-sub">Makler-Exposés, MLS-Sheets · max. 20 MB</div>
+        </div>
+        <input type="file" id="pdf-input" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+        <div class="upload-file-list" id="upload-file-list"></div>
+        <div class="err-box" id="pdf-err"></div>
+        <button class="btn-primary" id="pdf-analyze-btn" onclick="analyzePDFs()" style="display:none">PDF ANALYSIEREN →</button>
+      </div>
+      <div class="section">
+        <div class="slabel">Bild-Analyse mit RAG (KI + echte Deals)</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:10px;padding:8px;background:var(--blue-bg);border-radius:8px;border:1px solid var(--border2)">
+          Foto hochladen — KI vergleicht mit Ontario Dr + Circle Creek Dr
+        </div>
+        <div class="upload-zone" id="rag-upload-zone" onclick="document.getElementById('rag-img-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleRagDrop(event)">
+          <div class="upload-icon">📸</div>
+          <div class="upload-label">Bild hochladen (Raum / Schaden)</div>
+          <div class="upload-sub">JPG, PNG · max. 5 MB</div>
+        </div>
+        <input type="file" id="rag-img-input" accept="image/*" style="display:none" onchange="handleRagImage(this.files[0])">
+        <div id="rag-preview" style="display:none;margin:10px 0">
+          <img id="rag-img-preview" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" />
+        </div>
+        <div class="err-box" id="rag-err"></div>
+        <button class="btn-primary" id="rag-analyze-btn" onclick="analyzeImageRAG()" style="display:none">BILD MIT RAG ANALYSIEREN →</button>
+        <div class="loading" id="rag-loading" style="padding:20px">
+          <div class="spinner"></div>
+          <div class="load-sub">KI vergleicht mit echten Deals...</div>
+        </div>
+        <div id="rag-result" style="display:none"></div>
+      </div>
+    </div>
+
   </div>
 
-  <!-- ═══ IMPORT ═══ -->
-  <div class="tab-panel" id="panel-import">
+  <!-- ═══ IMPORT (merged into dashboard) ═══ -->
+  <div class="tab-panel" id="panel-import" style="display:none">
 
     <div class="section">
       <div class="slabel">PDF-Upload (Exposé / MLS-Sheet)</div>
       <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
         <div class="upload-icon">📄</div>
         <div class="upload-label">PDF hierher ziehen oder klicken</div>
-        <div class="upload-sub">Makler-Exposés, MLS-Sheets, Gutachten · max. 10 MB</div>
+        <div class="upload-sub">Makler-Exposés, MLS-Sheets, Gutachten · max. 20 MB</div>
       </div>
       <input type="file" id="pdf-input" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
       <div class="upload-file-list" id="upload-file-list"></div>
@@ -461,6 +566,7 @@ window.onload = async () => {
   renderSubmarkets();
   renderMIB();
   loadUserInfo();
+  loadIMAPCredentials();
   try {
     const r = await fetch('/api/config');
     const d = await r.json();
@@ -719,7 +825,7 @@ function renderAnalysis(r, l) {
       <div style="font-size:13px;color:var(--text);font-weight:500">${l.address}</div>
     </div>
 
-    <div class="score-bar">
+    <div class="score-bar-big">
       <div class="score-circle" style="border-color:${sc}">
         <div class="score-num" style="color:${sc}">${r.deal_score}</div>
         <div class="score-lbl">SCORE</div>
@@ -776,12 +882,12 @@ function fmt(n){return'$'+Math.round(n).toLocaleString('de-DE')}
 
 // ── Tab Navigation ───────────────────────────────────────────────────────────
 function switchTab(tab) {
-  ['search','import','settings','admin'].forEach(t => {
+  ['search','settings','admin'].forEach(t => {
     document.getElementById('panel-'+t).classList.toggle('active', t===tab);
     const btn = document.getElementById('tab-'+t);
     if(btn) btn.classList.toggle('active', t===tab);
   });
-  if(tab === 'import') loadIMAPCredentials();
+  if(tab === 'search') loadIMAPCredentials();
 }
 
 // ── User Management ───────────────────────────────────────────────────────────
@@ -1070,7 +1176,7 @@ function handleDrop(e) {
 function handleFiles(files) {
   for(const f of files) {
     if(f.type !== 'application/pdf') continue;
-    if(f.size > 10*1024*1024) { showPdfErr('Datei zu groß: max. 10 MB'); continue; }
+    if(f.size > 20*1024*1024) { showPdfErr('Datei zu groß: max. 10 MB'); continue; }
     if(pdfFiles.find(x=>x.name===f.name)) continue;
     pdfFiles.push(f);
   }
