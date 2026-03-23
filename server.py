@@ -1051,6 +1051,130 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
         return jsonify({"error": str(e)}), 500
 
 
+# ── Twilio / WhatsApp ──────────────────────────────────────────────────────────
+
+def _send_whatsapp(message: str) -> bool:
+    """Sendet WhatsApp Nachricht via Twilio."""
+    settings = _load_user_settings("admin").get("twilio", {})
+    sid   = os.environ.get("TWILIO_SID",   settings.get("sid",   ""))
+    token = os.environ.get("TWILIO_TOKEN", settings.get("token", ""))
+    from_ = os.environ.get("TWILIO_FROM",  settings.get("from",  ""))
+    to    = os.environ.get("TWILIO_TO",    settings.get("to",    ""))
+
+    if not all([sid, token, from_, to]):
+        print("WhatsApp: Keine Twilio-Konfiguration")
+        return False
+    try:
+        resp = requests.post(
+            f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",
+            auth=(sid, token),
+            data={"From": from_, "To": to, "Body": message},
+            timeout=10
+        )
+        print(f"WhatsApp sent: {resp.status_code}")
+        return resp.status_code in (200, 201)
+    except Exception as e:
+        print(f"WhatsApp error: {e}")
+        return False
+
+
+@app.route("/api/twilio-settings", methods=["GET"])
+@login_required
+def get_twilio_settings():
+    _ensure_settings_table()
+    username = session.get("username", "admin")
+    settings = _load_user_settings(username)
+    tw = settings.get("twilio", {})
+    if tw:
+        return jsonify({"saved": True, "sid": tw.get("sid",""), "token": tw.get("token",""),
+                        "from": tw.get("from",""), "to": tw.get("to","")})
+    return jsonify({"saved": False})
+
+
+@app.route("/api/twilio-settings", methods=["POST"])
+@login_required
+def save_twilio_settings():
+    _ensure_settings_table()
+    data = request.json or {}
+    username = session.get("username", "admin")
+    settings = _load_user_settings(username)
+    settings["twilio"] = {"sid": data.get("sid",""), "token": data.get("token",""),
+                          "from": data.get("from",""), "to": data.get("to","")}
+    # Also save to admin for auto-scan
+    admin_settings = _load_user_settings("admin")
+    admin_settings["twilio"] = settings["twilio"]
+    _save_user_settings("admin", admin_settings)
+    _save_user_settings(username, settings)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/whatsapp-test", methods=["POST"])
+@login_required
+def whatsapp_test():
+    ok = _send_whatsapp("🏠 Flip Analyzer Test-Nachricht — Benachrichtigungen sind aktiv!")
+    return jsonify({"ok": ok, "error": "" if ok else "Twilio-Konfiguration prüfen"})
+
+
+@app.route("/api/auto-scan", methods=["POST", "GET"])
+def auto_scan():
+    """Automatischer Scan — wird 2x täglich von Railway Cron aufgerufen."""
+    # Sicherheits-Token prüfen
+    token = request.args.get("token", "") or (request.json or {}).get("token", "")
+    expected = os.environ.get("CRON_TOKEN", "flip-cron-2024")
+    if token != expected:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if os.environ.get("AUTO_SCAN", "false").lower() != "true":
+        return jsonify({"message": "AUTO_SCAN nicht aktiviert"}), 200
+
+    results_summary = []
+    new_listings_count = 0
+
+    # Alle Counties scannen
+    for county_key, county in COUNTY_CONFIG.items():
+        try:
+            listings = _fetch_rapidapi(county, 150000, 500000, 3, 90,
+                                       os.environ.get("RAPIDAPI_KEY", "")) or                        _fetch_redfin(county, 150000, 500000, 3, 90) or []
+
+            if listings:
+                results_summary.append(f"• {county['name']}: {len(listings)} Objekte")
+                new_listings_count += len(listings)
+        except Exception as e:
+            print(f"Auto-scan error {county_key}: {e}")
+
+    # Email scannen
+    admin_settings = _load_user_settings("admin")
+    imap_creds = admin_settings.get("imap", {})
+    email_count = 0
+
+    if imap_creds.get("user") and imap_creds.get("password"):
+        try:
+            import imaplib, email as email_lib
+            from email.header import decode_header
+            mail = imaplib.IMAP4_SSL(imap_creds.get("host","imap.gmail.com"),
+                                     int(imap_creds.get("port", 993)))
+            mail.login(imap_creds["user"], imap_creds["password"])
+            mail.select("INBOX")
+            _, msg_ids = mail.search(None, 'SINCE "01-Jan-2026" UNSEEN')
+            email_count = len(msg_ids[0].split()) if msg_ids[0] else 0
+            mail.logout()
+            if email_count:
+                results_summary.append(f"• {email_count} neue Emails im Postfach")
+        except Exception as e:
+            print(f"Auto-scan IMAP error: {e}")
+
+    # WhatsApp senden wenn Ergebnisse
+    if new_listings_count > 0 or email_count > 0:
+        msg = f"🏠 Flip Analyzer — Täglicher Scan\n\n"
+        msg += "\n".join(results_summary)
+        msg += f"\n\nGesamt: {new_listings_count} Objekte + {email_count} Emails"
+        msg += f"\n\n👉 {os.environ.get('APP_URL','flip-analyzer-production.up.railway.app')}"
+        _send_whatsapp(msg)
+
+    return jsonify({"ok": True, "listings": new_listings_count, "emails": email_count,
+                    "summary": results_summary})
+
+
 # ── IMAP Credentials (persistent in Postgres) ─────────────────────────────────
 
 def _get_db_conn():
