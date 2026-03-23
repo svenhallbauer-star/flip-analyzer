@@ -250,23 +250,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
   <!-- ═══ DASHBOARD ═══ -->
   <div class="tab-panel active" id="panel-search">
 
-    <!-- Schnellzugriff Kacheln -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-      <div onclick="document.getElementById('section-zillow').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
-        <div style="font-size:24px;margin-bottom:6px">🏡</div>
-        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)">Zillow Suche</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">Listings durchsuchen</div>
+    <!-- Zentraler Analyse-Button -->
+    <div style="background:linear-gradient(135deg,var(--orange-bg),var(--blue-bg));border:1.5px solid var(--orange-border);border-radius:16px;padding:20px;margin-bottom:16px">
+      <div style="font-family:var(--font-head);font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">Alles auf einmal analysieren</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Zillow wird durchsucht + Postfach wird gescannt — alle Ergebnisse auf einen Blick</div>
+      <div id="analyze-all-status" style="display:none;margin-bottom:10px">
+        <div style="display:flex;flex-direction:column;gap:6px" id="analyze-all-steps"></div>
       </div>
-      <div onclick="document.getElementById('section-email').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
-        <div style="font-size:24px;margin-bottom:6px">✉️</div>
-        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)">E-Mail Analyse</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">Gmail / Makler-Emails</div>
-      </div>
-      <div onclick="document.getElementById('section-pdf').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
-        <div style="font-size:24px;margin-bottom:6px">📄</div>
-        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)">PDF / Bild Upload</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">Exposé & Foto-Analyse</div>
-      </div>
+      <button class="btn-primary" id="analyze-all-btn" onclick="analyzeAll()" style="font-size:13px;padding:15px;box-shadow:0 4px 20px rgba(249,115,22,.3)">
+        🔍 JETZT ALLES ANALYSIEREN
+      </button>
     </div>
 
     <div class="market-hero">
@@ -294,18 +287,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
     <div class="sm-row" id="sm-row"></div>
 
-    <div class="section">
-      <div class="filter-row">
-        <div class="field"><label>Min. Preis ($)</label><input type="number" id="f-min" value="150000"></div>
-        <div class="field"><label>Max. Preis ($)</label><input type="number" id="f-max" value="420000"></div>
-        <div class="field"><label>Min. Beds</label>
-          <select id="f-beds"><option value="2">2+</option><option value="3" selected>3+</option><option value="4">4+</option></select>
-        </div>
-        <div class="field"><label>Max. Days on Market</label><input type="number" id="f-dom" value="90"></div>
-      </div>
-      <div class="err-box" id="search-err"></div>
-      <button class="btn-primary" id="search-btn" onclick="doSearch()">ZILLOW DURCHSUCHEN →</button>
-    </div>
+    <div class="err-box" id="search-err"></div>
 
     <div class="loading" id="search-loading">
       <div class="spinner"></div>
@@ -340,25 +322,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         <div style="height:1px;background:var(--border);flex:1"></div>
       </div>
       <div class="section">
-        <div class="slabel">Gmail / IMAP scannen</div>
-        <div id="imap-saved-banner" style="display:none;background:var(--green-bg);border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:11px;color:var(--green-text);margin-bottom:10px;justify-content:space-between;align-items:center">
-          <span>✓ Zugangsdaten gespeichert</span>
-          <span style="cursor:pointer;color:var(--red-text)" onclick="clearIMAPCredentials()">✕ Löschen</span>
+        <div class="slabel">Gmail / IMAP — Ergebnisse</div>
+        <div id="imap-status-badge" style="font-size:11px;color:var(--muted);padding:8px;background:var(--surface2);border-radius:8px;margin-bottom:10px">
+          Zugangsdaten unter <strong style="cursor:pointer;color:var(--orange)" onclick="switchTab('settings')">Einstellungen</strong> konfigurieren
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host" value="imap.gmail.com"></div>
-          <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="field"><label>Email-Adresse</label><input type="email" id="imap-user" placeholder="deine@gmail.com"></div>
-          <div class="field"><label>App-Passwort</label><input type="password" id="imap-pass" placeholder="xxxx xxxx xxxx xxxx"></div>
-        </div>
-        <div class="field" style="margin-bottom:8px"><label>Suchbegriff (* = alle)</label><input type="text" id="imap-query" value="Expose OR zillow.com OR new listing"></div>
-        <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--orange-bg);border-radius:8px;border:1px solid var(--orange-border);margin-bottom:8px">
-          💡 Gmail App-Passwort: myaccount.google.com/apppasswords
-        </div>
-        <button class="btn-primary" onclick="scanIMAP()">POSTFACH SCANNEN →</button>
-        <div class="loading" id="email-loading" style="padding:20px">
+        <div class="loading" id="email-loading" style="padding:20px;display:none">
           <div class="spinner"></div>
           <div class="load-sub" id="email-load-text">Emails werden analysiert...</div>
         </div>
@@ -512,6 +480,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <div class="tab-panel" id="panel-settings">
+
     <div class="config-panel">
       <div class="config-title">⚡ API-Konfiguration</div>
       <div class="config-grid" style="grid-template-columns:1fr auto">
@@ -527,6 +496,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         Anthropic Key: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
       </div>
     </div>
+
+    <div class="section">
+      <div class="slabel">📬 E-Mail Zugangsdaten (Gmail / IMAP)</div>
+      <div id="imap-saved-banner-settings" style="display:none;background:var(--green-bg);border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:11px;color:var(--green-text);margin-bottom:10px;justify-content:space-between;align-items:center">
+        <span>✓ Zugangsdaten gespeichert — werden beim Scan automatisch verwendet</span>
+        <span style="cursor:pointer;color:var(--red-text)" onclick="clearIMAPCredentials()">✕ Löschen</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="field"><label>IMAP-Server</label><input type="text" id="imap-host-settings" value="imap.gmail.com"></div>
+        <div class="field"><label>Port</label><input type="number" id="imap-port-settings" value="993"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="field"><label>Email-Adresse</label><input type="email" id="imap-user-settings" placeholder="deine@gmail.com"></div>
+        <div class="field"><label>App-Passwort</label><input type="password" id="imap-pass-settings" placeholder="xxxx xxxx xxxx xxxx"></div>
+      </div>
+      <div class="field" style="margin-bottom:8px">
+        <label>Standard-Suchbegriff</label>
+        <input type="text" id="imap-query-settings" value="Expose OR zillow.com OR new listing">
+      </div>
+      <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--orange-bg);border-radius:8px;border:1px solid var(--orange-border);margin-bottom:10px">
+        💡 Gmail App-Passwort erstellen: <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--orange)">myaccount.google.com/apppasswords</a>
+      </div>
+      <button class="btn-save" style="width:100%;height:auto;padding:10px" onclick="saveIMAPSettings()">ZUGANGSDATEN SPEICHERN</button>
+    </div>
+
+    <div class="section">
+      <div class="slabel">🔍 Zillow Suchfilter (Standard)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="field"><label>Min. Preis ($)</label><input type="number" id="f-min" value="150000"></div>
+        <div class="field"><label>Max. Preis ($)</label><input type="number" id="f-max" value="420000"></div>
+        <div class="field"><label>Min. Beds</label>
+          <select id="f-beds"><option value="2">2+</option><option value="3" selected>3+</option><option value="4">4+</option></select>
+        </div>
+        <div class="field"><label>Max. Days on Market</label><input type="number" id="f-dom" value="90"></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ═══ ADMIN ═══ -->
@@ -1283,19 +1289,123 @@ function fileToBase64(file) {
   });
 }
 
+// ── Analyse All ──────────────────────────────────────────────────────────────
+async function analyzeAll() {
+  const btn = document.getElementById('analyze-all-btn');
+  const status = document.getElementById('analyze-all-status');
+  const steps = document.getElementById('analyze-all-steps');
+  btn.disabled = true;
+  btn.textContent = 'Analysiere...';
+  status.style.display = 'block';
+  steps.innerHTML = '';
+
+  function addStep(icon, text, done=false) {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid var(--border)';
+    el.innerHTML = `<span style="font-size:14px">${icon}</span><span style="color:var(--text)">${text}</span>`;
+    steps.appendChild(el);
+    return el;
+  }
+
+  // Step 1: Zillow search
+  const zStep = addStep('🔍', 'Zillow wird durchsucht...');
+  try {
+    const resp = await fetch('/api/search', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        county, min_price: document.getElementById('f-min')?.value||150000,
+        max_price: document.getElementById('f-max')?.value||420000,
+        min_beds: document.getElementById('f-beds')?.value||3,
+        max_dom: document.getElementById('f-dom')?.value||90
+      })
+    });
+    const data = await resp.json();
+    listings = data.results || [];
+    zStep.innerHTML = `<span style="font-size:14px">✅</span><span style="color:var(--green-text)"><strong>${listings.length} Zillow-Objekte</strong> gefunden</span>`;
+    if(listings.length) {
+      document.getElementById('listings-wrap').style.display = 'block';
+      document.getElementById('listing-count').textContent = listings.length;
+      renderListings(listings, data.source, null);
+    }
+  } catch(e) {
+    zStep.innerHTML = `<span>⚠️</span><span style="color:var(--red-text)">Zillow-Fehler: ${e.message}</span>`;
+  }
+
+  // Step 2: Email scan
+  const eStep = addStep('✉️', 'Postfach wird gescannt...');
+  try {
+    // Load saved credentials
+    const credsResp = await fetch('/api/imap-credentials');
+    const creds = await credsResp.json();
+    if(!creds.saved || !creds.user) {
+      eStep.innerHTML = `<span>⚠️</span><span style="color:var(--muted)">Keine E-Mail Zugangsdaten — <strong style="cursor:pointer;color:var(--orange)" onclick="switchTab('settings')">jetzt konfigurieren</strong></span>`;
+    } else {
+      const emailResp = await fetch('/api/scan-imap', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          host: creds.host, port: creds.port,
+          user: creds.user, password: creds.password,
+          query: creds.query || 'Expose OR zillow.com', county_key: county
+        })
+      });
+      const emailData = await emailResp.json();
+      const found = (emailData.listings||[]).length;
+      if(found) {
+        showEmailListings(emailData.listings);
+        eStep.innerHTML = `<span style="font-size:14px">✅</span><span style="color:var(--green-text)"><strong>${found} Objekte</strong> aus Emails</span>`;
+        document.getElementById('section-email').scrollIntoView({behavior:'smooth'});
+      } else {
+        eStep.innerHTML = `<span>📭</span><span style="color:var(--muted)">Keine neuen Objekte in Emails</span>`;
+      }
+    }
+  } catch(e) {
+    eStep.innerHTML = `<span>⚠️</span><span style="color:var(--muted)">E-Mail Scan: ${e.message.slice(0,50)}</span>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔍 NOCHMAL ANALYSIEREN';
+  addStep('✅', 'Analyse abgeschlossen!');
+}
+
+async function saveIMAPSettings() {
+  const data = {
+    host:     document.getElementById('imap-host-settings').value.trim(),
+    port:     parseInt(document.getElementById('imap-port-settings').value)||993,
+    user:     document.getElementById('imap-user-settings').value.trim(),
+    password: document.getElementById('imap-pass-settings').value.trim(),
+    query:    document.getElementById('imap-query-settings').value.trim()
+  };
+  if(!data.user || !data.password) { alert('Bitte E-Mail und Passwort eingeben.'); return; }
+  await fetch('/api/imap-credentials', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  const banner = document.getElementById('imap-saved-banner-settings');
+  if(banner) { banner.style.display = 'flex'; }
+  // Update status badge on dashboard
+  const badge = document.getElementById('imap-status-badge');
+  if(badge) badge.innerHTML = `<strong style="color:var(--green-text)">✓ Postfach konfiguriert:</strong> ${data.user}`;
+  alert('Zugangsdaten gespeichert!');
+}
+
 // ── IMAP Credentials ─────────────────────────────────────────────────────────
 async function loadIMAPCredentials() {
   try {
     const r = await fetch('/api/imap-credentials');
     const d = await r.json();
     if(d.saved) {
-      document.getElementById('imap-host').value  = d.host  || 'imap.gmail.com';
-      document.getElementById('imap-port').value  = d.port  || 993;
-      document.getElementById('imap-user').value  = d.user  || '';
-      document.getElementById('imap-pass').value = d.password || '';
-      document.getElementById('imap-query').value = d.query || '';
-      const banner = document.getElementById('imap-saved-banner');
-      if(banner) { banner.style.display = 'flex'; }
+      // Populate settings panel
+      const setField = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+      setField('imap-host-settings', d.host || 'imap.gmail.com');
+      setField('imap-port-settings', d.port || 993);
+      setField('imap-user-settings', d.user || '');
+      setField('imap-pass-settings', d.password || '');
+      setField('imap-query-settings', d.query || '');
+      const banner = document.getElementById('imap-saved-banner-settings');
+      if(banner) banner.style.display = 'flex';
+      // Update dashboard badge
+      const badge = document.getElementById('imap-status-badge');
+      if(badge && d.user) badge.innerHTML = `<strong style="color:var(--green-text)">✓ Postfach konfiguriert:</strong> ${d.user} — wird beim Analysieren automatisch gescannt`;
     }
   } catch(e) {}
 }
