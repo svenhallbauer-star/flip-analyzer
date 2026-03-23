@@ -423,7 +423,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
             print(f"RapidAPI Parse-Fehler: {e}")
             continue
 
-    return listings[:12]
+    return listings[:50]
 
 
 def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
@@ -454,7 +454,7 @@ def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
         "min_beds": str(min_beds),
         "min_price": str(min_price),
         "num_beds": str(min_beds),
-        "num_homes": "50",
+        "num_homes": "100",
         "ord": "days-on-redfin-asc",
         "page_number": "1",
         "property_type": "1",   # 1 = Single Family
@@ -530,7 +530,7 @@ def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
             print(f"Parse-Fehler bei Listing: {e}")
             continue
 
-    return listings[:12]
+    return listings[:50]
 
 
 import base64
