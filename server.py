@@ -15,6 +15,7 @@ import json
 import time
 import hashlib
 import secrets
+from email_enrichment import enrich_email
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
@@ -607,53 +608,91 @@ Antworte NUR mit validem JSON (kein Markdown):
 @login_required
 def analyze_email():
     data       = request.json or {}
-    email_text = data.get("email_text", "")
+    email_text = data.get("email_text", "").strip()
+    email_html = data.get("email_html", "").strip()
     county_key = data.get("county_key", "pinellas")
     county     = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
 
+    if not email_text and not email_html:
+        return jsonify({"error": "Kein Email-Inhalt erhalten."}), 400
     if not get_anthropic_key():
         return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
 
-    prompt = f"""Analysiere diesen Email-Text von einem Makler oder einer Immobilien-Plattform.
-Extrahiere alle Immobilien-Listings die du findest.
+    # ── Link-Enrichment: Links extrahieren, Seiten fetchen, Bilder laden ──
+    enrichment  = enrich_email(html=email_html, text=email_text, county_key=county_key)
+    extra_text  = enrichment["extra_text"]
+    images      = enrichment["images"]   # [{"b64", "media_type", "url"}]
+
+    combined_text = email_text
+    if extra_text:
+        combined_text += f"\n\n--- INHALT AUS VERLINKTEN SEITEN ---\n{extra_text}"
+    # ───────────────────────────────────────────────────────────────────────
+
+    prompt = f"""Du bist ein Immobilien-Daten-Extraktor fuer Fix-and-Flip in Tampa Bay, Florida.
+
+Analysiere Email + verlinkte Seiten und extrahiere JEDES Immobilien-Objekt.
+
+REGELN:
+- "WG:" / "Fwd:" = weitergeleitet, trotzdem analysieren
+- Alle Preise extrahieren: $250k, 250000, ARV, spread etc.
+- Mehrere Objekte = alle einzeln zurueckgeben
+- Fehlende sqft: schaetzen (3/2 ~ 1400sqft, 2/1 ~ 1000sqft)
+- NIEMALS price=0 wenn Preis erkennbar
+- Auch Off-Market, Wholesale, Assignment Deals extrahieren
+- Falls Bilder mitgeschickt: Zustand sichtbarer Raeume in notes beschreiben
 
 Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft)
 
-Antworte NUR mit validem JSON (kein Markdown):
+EMAIL + SEITEN-INHALT:
+{combined_text[:5000]}
+
+Antworte NUR mit validem JSON:
 {{
   "listings": [
     {{
-      "address": "<Adresse>",
-      "price": <Preis>,
+      "address": "<vollstaendige US-Adresse>",
+      "price": <Preis als Zahl oder 0>,
       "beds": <Beds>,
       "baths": <Baths>,
-      "sqft": <sqft oder 0>,
-      "year_built": <Jahr oder 0>,
+      "sqft": <sqft geschaetzt>,
+      "year_built": 0,
       "dom": 0,
-      "price_sqft": <oder 0>,
+      "price_sqft": 0,
       "county": "{county_key}",
-      "listing_url": "<URL falls vorhanden>",
+      "listing_url": "",
+      "zpid": "",
+      "photos": [],
       "source": "email",
-      "notes": "<Zusatzinfos>",
+      "notes": "<ARV, Spread, Zustand, Bild-Beschreibung, alle wichtigen Details>",
       "zestimate": 0
     }}
   ]
-}}
+}}"""
 
-Email-Text:
-{email_text[:4000]}"""
+    # Bilder + Text als multimodalen Content aufbauen
+    user_content = []
+    for img in images[:3]:
+        user_content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": img["media_type"], "data": img["b64"]}
+        })
+    user_content.append({"type": "text", "text": prompt})
 
     try:
         resp = _anthropic_post({
-                "model": "claude-sonnet-4-5",
-                "max_tokens": 1500,
-                "system": "Du bist Immobilien-Daten-Extraktor. Antworte NUR mit validem JSON.",
-                "messages": [{"role": "user", "content": prompt}]
-            })
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 2000,
+            "system": "Immobilien-Extraktor. Antworte NUR mit validem JSON. Extrahiere ALLE Objekte.",
+            "messages": [{"role": "user", "content": user_content}]
+        })
         resp.raise_for_status()
-        raw = resp.json()["content"][0]["text"]
-        raw = raw.replace("```json", "").replace("```", "").strip()
+        raw = resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
         result = json.loads(raw)
+        result["_enrichment"] = {
+            "links_found":   enrichment["links_found"],
+            "links_fetched": enrichment["links_fetched"],
+            "images_loaded": len(images),
+        }
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -798,93 +837,31 @@ def scan_imap():
                             except Exception as pe:
                                 print(f"  PDF-Fehler: {pe}")
 
-                    # Zillow/Redfin Links aus Email extrahieren und abrufen
-                    import re
-                    link_texts = []
-                    all_content = full_body
-                    # HTML body auch pruefen
+                    # ── Link-Enrichment: alle Makler-Links fetchen, Bilder laden ──
                     html_body = ""
                     if msg.is_multipart():
                         for part in msg.walk():
                             if part.get_content_type() == "text/html":
                                 try:
                                     html_body = part.get_payload(decode=True).decode(errors="ignore")
-                                except:
+                                except Exception:
                                     pass
                                 break
-                    
-                    search_text = full_body + html_body
-                    # Zillow und Redfin URLs finden
-                    urls = re.findall("https?://(?:www[.])?(?:zillow[.]com|redfin[.]com)/[^ \t\n\"<>]+", search_text)
-                    urls = list(set(urls))[:5]  # max 5 unique URLs
-                    
-                    for url in urls:
-                        try:
-                            print(f"  Link abrufen: {url[:80]}")
-                            rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
-                            
-                            # Zillow URL: zpid extrahieren
-                            zpid_match = re.search(r'/(\d+)_zpid', url)
-                            if zpid_match and rapidapi_key:
-                                zpid = zpid_match.group(1)
-                                r = requests.get(
-                                    "https://real-time-real-estate-data.p.rapidapi.com/property-details",
-                                    headers={"x-rapidapi-host": "real-time-real-estate-data.p.rapidapi.com",
-                                             "x-rapidapi-key": rapidapi_key},
-                                    params={"zpid": zpid},
-                                    timeout=15
-                                )
-                                if r.ok:
-                                    d = r.json().get("data", r.json())
-                                    addr = d.get("address", {})
-                                    if isinstance(addr, dict):
-                                        address = f"{addr.get('streetAddress','')}, {addr.get('city','')}, {addr.get('state','FL')} {addr.get('zipcode','')}"
-                                    else:
-                                        address = str(addr)
-                                    
-                                    # Fotos sammeln
-                                    photos = []
-                                    for field in ["carouselPhotos", "responsivePhotos", "photos"]:
-                                        raw = d.get(field, [])
-                                        if raw:
-                                            for p in raw:
-                                                u = p.get("url","") if isinstance(p,dict) else str(p)
-                                                if u and u.startswith("http"):
-                                                    photos.append(u)
-                                            if photos:
-                                                break
-                                    
-                                    link_info = f"""[Zillow Link: {url}]
-Adresse: {address}
-Preis: ${d.get('price', d.get('listPrice', 0)):,}
-Betten: {d.get('bedrooms', 0)} | Baeder: {d.get('bathrooms', 0)}
-Wohnflaeche: {d.get('livingArea', 0)} sqft
-Baujahr: {d.get('yearBuilt', 0)}
-Fotos: {len(photos)} verfuegbar
-ZPID: {zpid}"""
-                                    link_texts.append(link_info)
-                                    print(f"  Zillow-Daten geladen: {address[:50]}")
-                            else:
-                                # Direkt URL-Inhalt holen
-                                r = requests.get(url, timeout=10, headers={
-                                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-                                })
-                                if r.ok:
-                                    # Nur Text extrahieren
-                                    text = re.sub(r'<[^>]+>', ' ', r.text)
-                                    text = re.sub(r'\s+', ' ', text)[:1000]
-                                    link_texts.append("[Link-Inhalt: " + url + "]\n" + text)
-                        except Exception as le:
-                            print(f"  Link-Fehler: {le}")
+
+                    enrichment   = enrich_email(html=html_body, text=full_body, county_key=county_key)
+                    extra_text   = enrichment["extra_text"]
+                    email_images = enrichment["images"]   # [{"b64","media_type","url"}]
+                    link_texts   = [extra_text] if extra_text else []
+                    # ─────────────────────────────────────────────────────────
 
                     combined_content = f"Von: {sender}\nBetreff: {subject}\n\n{full_body}"
                     if pdf_texts:
                         combined_content += "\n\n" + "\n\n".join(pdf_texts)
                     if link_texts:
-                        combined_content += "\n\n=== GEFUNDENE LINKS ===\n" + "\n\n".join(link_texts)
+                        combined_content += "\n\n=== INHALT VERLINKTER SEITEN ===\n" + "\n\n".join(link_texts)
 
-                    email_texts.append(combined_content)
-                    print(f"  Email gefunden: {subject[:60]} | PDFs: {len(pdf_texts)} | Links: {len(link_texts)}")
+                    email_texts.append((combined_content, email_images))
+                    print(f"  Email gefunden: {subject[:60]} | PDFs: {len(pdf_texts)} | Links: {len(enrichment['links_fetched'])} | Bilder: {len(email_images)}")
             except Exception as e:
                 print(f"  Email-Fehler: {e}")
                 continue
@@ -899,7 +876,7 @@ ZPID: {zpid}"""
         all_listings = []
 
         # Jede Email EINZELN analysieren fuer maximale Genauigkeit
-        for idx, email_text in enumerate(email_texts):
+        for idx, (email_text, email_images) in enumerate(email_texts):
             print(f"  Email {idx+1}/{len(email_texts)} wird analysiert...")
             try:
                 county_name = county['name']
@@ -945,11 +922,20 @@ Antworte NUR mit validem JSON:
   ]
 }}"""
 
+                # Multimodaler Content: Bilder (aus Links) + Text
+                user_content = []
+                for img in email_images[:3]:
+                    user_content.append({
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": img["media_type"], "data": img["b64"]}
+                    })
+                user_content.append({"type": "text", "text": prompt})
+
                 resp = _anthropic_post({
                     "model": "claude-sonnet-4-5",
                     "max_tokens": 1500,
                     "system": "Immobilien-Extraktor. Antworte NUR mit validem JSON. Extrahiere ALLE Objekte.",
-                    "messages": [{"role": "user", "content": prompt}]
+                    "messages": [{"role": "user", "content": user_content}]
                 })
                 raw = resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
                 result = json.loads(raw)
