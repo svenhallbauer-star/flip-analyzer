@@ -698,11 +698,12 @@ def scan_imap():
         mail.login(user, password)
         mail.select("INBOX")
 
-        # Search all emails since Jan 2026 - no keyword filter at IMAP level
-        _, msg_ids = mail.search(None, 'SINCE "01-Jan-2026"')
+        # Search ALL emails - no date filter, no limit
+        _, msg_ids = mail.search(None, 'ALL')
         all_ids = msg_ids[0].split()
-        # Take last 50 emails
-        ids = all_ids[-50:]
+        print(f"  Gesamt Emails im Postfach: {len(all_ids)}")
+        # Take all emails, newest first
+        ids = list(reversed(all_ids))[:100]
 
         email_texts = []
         keywords = [q.strip().lower() for q in query.replace(" OR ", "|").split("|")]
@@ -755,7 +756,9 @@ def scan_imap():
                 combined_full = (combined + body.lower())
 
                 # Match if ANY keyword found, or if query is empty/wildcard
-                if query.strip() == "*" or not keywords or any(kw in combined_full for kw in keywords):
+                # Always match if * or empty
+                is_wildcard = not query.strip() or query.strip() == "*"
+                if is_wildcard or any(kw in combined_full for kw in keywords):
                     # Get full body
                     full_body = ""
                     if msg.is_multipart():
@@ -892,35 +895,40 @@ ZPID: {zpid}"""
             return jsonify({"listings": [], "message": "Keine passenden Emails gefunden."})
 
         # Analyze combined email content directly (no localhost call)
-        combined_text = "\n\n---\n\n".join(email_texts[:5])
+        combined_text = "\n\n---\n\n".join(email_texts[:20])
         county = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
 
-        prompt = f"""Analysiere diesen Email-Text und extrahiere ALLE Immobilien-Listings.
-Nutze ALLE verfuegbaren Informationen inkl. PDF-Inhalte und Zillow-Link-Daten.
+        prompt = f"""Du bist ein Immobilien-Daten-Extraktor fuer Fix-and-Flip Objekte in Tampa Bay, Florida.
 
-Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft)
+Analysiere ALLE folgenden Emails/Dokumente und extrahiere JEDES erwaehnte Immobilien-Objekt.
 
-WICHTIG: Wenn Preis, sqft oder andere Daten aus den Zillow-Links oder PDFs verfuegbar sind, 
-verwende diese Werte. Schaetze fehlende Werte basierend auf dem Markt.
+WICHTIGE HINWEISE:
+- "WG:" oder "Fwd:" im Betreff = weitergeleitete Email, trotzdem analysieren
+- "New Property Available" = neues Angebot, immer extrahieren
+- Preis kann als "$250k", "250,000", "asking 250" etc. stehen
+- Fehlende Werte (sqft, year) bitte schaetzen basierend auf Beds/Baths und Markt
+- Mehrere Objekte pro Email moeglich — alle extrahieren
 
-Antworte NUR mit validem JSON (kein Markdown):
+Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft, Median ${county['median_price']:,})
+
+Antworte NUR mit validem JSON:
 {{
   "listings": [
     {{
-      "address": "<vollstaendige Adresse>",
-      "price": <Kaufpreis als Zahl, NIEMALS 0 wenn bekannt>,
-      "beds": <Schlafzimmer>,
-      "baths": <Bäder>,
-      "sqft": <Wohnflaeche, schaetze basierend auf Beds/Baths wenn unbekannt>,
+      "address": "<vollstaendige US-Adresse>",
+      "price": <Preis als Zahl ohne Komma, NIEMALS 0>,
+      "beds": <Schlafzimmer als Zahl>,
+      "baths": <Bäder als Zahl>,
+      "sqft": <Wohnflaeche, mindestens 800 schaetzen wenn unbekannt>,
       "year_built": <Baujahr oder 0>,
       "dom": 0,
       "price_sqft": <Preis/sqft oder 0>,
       "county": "{county_key}",
-      "listing_url": "<Zillow/Redfin URL falls vorhanden>",
-      "zpid": "<Zillow ZPID falls vorhanden, sonst leer>",
+      "listing_url": "<URL falls vorhanden, sonst leer>",
+      "zpid": "",
       "photos": [],
       "source": "email",
-      "notes": "<Zustand, Besonderheiten, Schäden>",
+      "notes": "<alle wichtigen Details: Zustand, Spread, ARV, Reno-Kosten, Besonderheiten>",
       "zestimate": 0
     }}
   ]
