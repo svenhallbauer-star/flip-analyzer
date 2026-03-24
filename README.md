@@ -20,7 +20,7 @@ ANTHROPIC_KEY = "sk-ant-IHR_KEY_HIER"
 
 **Oder** starten Sie den Server ohne Keys — dann läuft die App im **Demo-Modus** mit realistischen Beispieldaten.
 
-### 3. Server starten 
+### 3. Server starten
 ```
 python server.py
 ```

@@ -618,28 +618,30 @@ def analyze_email():
     if not get_anthropic_key():
         return jsonify({"error": "Anthropic API-Key nicht konfiguriert."}), 400
 
-    # ── Link-Enrichment: Links extrahieren, Seiten fetchen, Bilder laden ──
+    # ── 2-Level Link-Enrichment: Links folgen, Seiten fetchen, Bilder+PDFs laden
     enrichment  = enrich_email(html=email_html, text=email_text, county_key=county_key)
     extra_text  = enrichment["extra_text"]
     images      = enrichment["images"]   # [{"b64", "media_type", "url"}]
+    pdfs        = enrichment["pdfs"]     # [{"b64", "url"}]
 
     combined_text = email_text
     if extra_text:
         combined_text += f"\n\n--- INHALT AUS VERLINKTEN SEITEN ---\n{extra_text}"
-    # ───────────────────────────────────────────────────────────────────────
 
     prompt = f"""Du bist ein Immobilien-Daten-Extraktor fuer Fix-and-Flip in Tampa Bay, Florida.
 
-Analysiere Email + verlinkte Seiten und extrahiere JEDES Immobilien-Objekt.
+Analysiere Email + verlinkte Seiten + Bilder + Dokumente und extrahiere JEDES Immobilien-Objekt.
 
 REGELN:
 - "WG:" / "Fwd:" = weitergeleitet, trotzdem analysieren
-- Alle Preise extrahieren: $250k, 250000, ARV, spread etc.
+- Alle Preise: $250k, 250000, ARV, NPO, Rehab etc.
+- NPO = Net Purchase Offer = Kaufpreis
+- Rehab-Kosten separat in notes festhalten
 - Mehrere Objekte = alle einzeln zurueckgeben
 - Fehlende sqft: schaetzen (3/2 ~ 1400sqft, 2/1 ~ 1000sqft)
 - NIEMALS price=0 wenn Preis erkennbar
 - Auch Off-Market, Wholesale, Assignment Deals extrahieren
-- Falls Bilder mitgeschickt: Zustand sichtbarer Raeume in notes beschreiben
+- Falls Bilder oder PDFs mitgeschickt: Zustand und Details in notes beschreiben
 
 Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft)
 
@@ -651,7 +653,7 @@ Antworte NUR mit validem JSON:
   "listings": [
     {{
       "address": "<vollstaendige US-Adresse>",
-      "price": <Preis als Zahl oder 0>,
+      "price": <Kaufpreis als Zahl oder 0>,
       "beds": <Beds>,
       "baths": <Baths>,
       "sqft": <sqft geschaetzt>,
@@ -663,15 +665,20 @@ Antworte NUR mit validem JSON:
       "zpid": "",
       "photos": [],
       "source": "email",
-      "notes": "<ARV, Spread, Zustand, Bild-Beschreibung, alle wichtigen Details>",
+      "notes": "<Rehab-Kosten, ARV, Zustand, Bild-/Dokument-Beschreibung, alle Details>",
       "zestimate": 0
     }}
   ]
 }}"""
 
-    # Bilder + Text als multimodalen Content aufbauen
+    # Multimodalen Content aufbauen: PDFs + Bilder + Text
     user_content = []
-    for img in images[:3]:
+    for pdf in pdfs[:2]:
+        user_content.append({
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": pdf["b64"]}
+        })
+    for img in images[:4]:
         user_content.append({
             "type": "image",
             "source": {"type": "base64", "media_type": img["media_type"], "data": img["b64"]}
@@ -692,6 +699,7 @@ Antworte NUR mit validem JSON:
             "links_found":   enrichment["links_found"],
             "links_fetched": enrichment["links_fetched"],
             "images_loaded": len(images),
+            "pdfs_loaded":   len(pdfs),
         }
         return jsonify(result)
     except Exception as e:
@@ -814,30 +822,7 @@ def scan_imap():
                         except:
                             pass
 
-                    # PDF-Anhaenge extrahieren
-                    pdf_texts = []
-                    for part in msg.walk():
-                        if part.get_content_type() == "application/pdf" or                            (part.get_filename() and part.get_filename().lower().endswith(".pdf")):
-                            try:
-                                pdf_data = part.get_payload(decode=True)
-                                if pdf_data:
-                                    pdf_b64 = base64.b64encode(pdf_data).decode("utf-8")
-                                    # PDF via Claude analysieren
-                                    pdf_resp = _anthropic_post({
-                                        "model": "claude-sonnet-4-5",
-                                        "max_tokens": 800,
-                                        "messages": [{"role": "user", "content": [
-                                            {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64}},
-                                            {"type": "text", "text": "Extrahiere alle Immobiliendaten aus diesem Dokument: Adresse, Preis, Groesse, Zimmer, Baujahr, Zustand, Besonderheiten. Antworte auf Deutsch."}
-                                        ]}]
-                                    })
-                                    pdf_text = pdf_resp.json()["content"][0]["text"]
-                                    pdf_texts.append(f"[PDF-Anhang: {part.get_filename()}]\n{pdf_text}")
-                                    print(f"  PDF-Anhang analysiert: {part.get_filename()}")
-                            except Exception as pe:
-                                print(f"  PDF-Fehler: {pe}")
-
-                    # ── Link-Enrichment: alle Makler-Links fetchen, Bilder laden ──
+                    # ── 2-Level Link-Enrichment (v2) ──────────────────────
                     html_body = ""
                     if msg.is_multipart():
                         for part in msg.walk():
@@ -850,18 +835,33 @@ def scan_imap():
 
                     enrichment   = enrich_email(html=html_body, text=full_body, county_key=county_key)
                     extra_text   = enrichment["extra_text"]
-                    email_images = enrichment["images"]   # [{"b64","media_type","url"}]
-                    link_texts   = [extra_text] if extra_text else []
-                    # ─────────────────────────────────────────────────────────
+                    email_images = enrichment["images"]
+                    email_pdfs   = enrichment["pdfs"]
+
+                    # PDF-Anhaenge direkt aus der Email
+                    attachment_pdfs = []
+                    for part in msg.walk():
+                        if part.get_content_type() == "application/pdf" or \
+                           (part.get_filename() and part.get_filename().lower().endswith(".pdf")):
+                            try:
+                                pdf_data = part.get_payload(decode=True)
+                                if pdf_data:
+                                    attachment_pdfs.append({
+                                        "b64": base64.b64encode(pdf_data).decode("utf-8"),
+                                        "url": f"Anhang: {part.get_filename()}"
+                                    })
+                                    print(f"  PDF-Anhang: {part.get_filename()}")
+                            except Exception as pe:
+                                print(f"  PDF-Anhang-Fehler: {pe}")
+
+                    all_pdfs = attachment_pdfs + email_pdfs
 
                     combined_content = f"Von: {sender}\nBetreff: {subject}\n\n{full_body}"
-                    if pdf_texts:
-                        combined_content += "\n\n" + "\n\n".join(pdf_texts)
-                    if link_texts:
-                        combined_content += "\n\n=== INHALT VERLINKTER SEITEN ===\n" + "\n\n".join(link_texts)
+                    if extra_text:
+                        combined_content += f"\n\n=== INHALT VERLINKTER SEITEN ===\n{extra_text}"
 
-                    email_texts.append((combined_content, email_images))
-                    print(f"  Email gefunden: {subject[:60]} | PDFs: {len(pdf_texts)} | Links: {len(enrichment['links_fetched'])} | Bilder: {len(email_images)}")
+                    email_texts.append((combined_content, email_images, all_pdfs))
+                    print(f"  Email: {subject[:55]} | Links: {len(enrichment['links_fetched'])} | Bilder: {len(email_images)} | PDFs: {len(all_pdfs)}")
             except Exception as e:
                 print(f"  Email-Fehler: {e}")
                 continue
@@ -876,7 +876,7 @@ def scan_imap():
         all_listings = []
 
         # Jede Email EINZELN analysieren fuer maximale Genauigkeit
-        for idx, (email_text, email_images) in enumerate(email_texts):
+        for idx, (email_text, email_images, email_pdfs) in enumerate(email_texts):
             print(f"  Email {idx+1}/{len(email_texts)} wird analysiert...")
             try:
                 county_name = county['name']
@@ -884,19 +884,22 @@ def scan_imap():
                 arv_high = county['arv_high']
                 prompt = f"""Du bist ein Immobilien-Daten-Extraktor fuer Fix-and-Flip in Tampa Bay, Florida.
 
-Analysiere diese Email und extrahiere JEDES erwaehnte Immobilien-Objekt.
+Analysiere Email + verlinkte Seiten + Bilder + Dokumente und extrahiere JEDES Immobilien-Objekt.
 
 REGELN:
 - "WG:" / "Fwd:" = weitergeleitet, trotzdem analysieren
-- Jeden Preis extrahieren: $250k, 250000, asking 250k, 200k spread etc.
-- Mehrere Objekte pro Email = alle einzeln zurueckgeben
+- Alle Preise: $250k, 250000, ARV, NPO, Rehab etc.
+- NPO = Net Purchase Offer = Kaufpreis
+- Rehab-Kosten separat in notes festhalten
+- Mehrere Objekte = alle einzeln zurueckgeben
 - Fehlende sqft: schaetzen (3/2 ~ 1400sqft, 2/1 ~ 1000sqft)
-- NIEMALS price=0 wenn ein Preis erkennbar ist
+- NIEMALS price=0 wenn Preis erkennbar
 - Auch Off-Market, Wholesale, Assignment Deals extrahieren
+- Falls Bilder oder PDFs: Zustand und Details in notes beschreiben
 
 Markt: {county_name} (ARV {arv_low}-{arv_high} USD/sqft)
 
-EMAIL:
+EMAIL + SEITEN-INHALT:
 {email_text[:5000]}
 
 Antworte NUR mit validem JSON:
@@ -904,7 +907,7 @@ Antworte NUR mit validem JSON:
   "listings": [
     {{
       "address": "<vollstaendige US-Adresse>",
-      "price": <Preis als Zahl>,
+      "price": <Kaufpreis als Zahl>,
       "beds": <Beds>,
       "baths": <Baths>,
       "sqft": <sqft geschaetzt>,
@@ -916,15 +919,20 @@ Antworte NUR mit validem JSON:
       "zpid": "",
       "photos": [],
       "source": "email",
-      "notes": "<ARV, Spread, Zustand, alle wichtigen Details aus der Email>",
+      "notes": "<Rehab, ARV, Zustand, Bild-/Dokument-Details>",
       "zestimate": 0
     }}
   ]
 }}"""
 
-                # Multimodaler Content: Bilder (aus Links) + Text
+                # Multimodaler Content: PDFs + Bilder + Text
                 user_content = []
-                for img in email_images[:3]:
+                for pdf in email_pdfs[:2]:
+                    user_content.append({
+                        "type": "document",
+                        "source": {"type": "base64", "media_type": "application/pdf", "data": pdf["b64"]}
+                    })
+                for img in email_images[:4]:
                     user_content.append({
                         "type": "image",
                         "source": {"type": "base64", "media_type": img["media_type"], "data": img["b64"]}

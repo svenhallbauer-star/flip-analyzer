@@ -437,7 +437,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <div class="paste-form show" id="paste-form">
         <div class="field">
           <label>Email-Inhalt einfügen</label>
-          <textarea id="email-paste" rows="6" style="background:#fff;border:1.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:10px;resize:vertical" placeholder="Email-Text oder HTML hier einfügen — z.B. Zillow/Redfin-Alert, Makler-Email. Tipp: In Outlook/Gmail 'Quelltext anzeigen' → HTML reinkopieren für beste Ergebnisse (Links werden automatisch geöffnet)."></textarea>
+          <textarea id="email-paste" rows="6" style="background:#fff;border:1.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:10px;resize:vertical" placeholder="Email-Text hier einfügen — z.B. Zillow/Redfin-Alert, Makler-Email..."></textarea>
         </div>
         <button class="btn-primary" onclick="analyzeEmailPaste()">EMAIL AUSWERTEN →</button>
       </div>
@@ -1491,31 +1491,18 @@ function selectEmailTab(tab) {
 }
 
 async function analyzeEmailPaste() {
-  const raw = document.getElementById('email-paste').value.trim();
-  if(!raw) return;
-  showEmailLoading('Email wird ausgewertet + Links werden geöffnet...');
-
-  // Erkennen ob HTML oder Plain-Text eingefügt wurde
-  const isHTML = raw.trimStart().startsWith('<') || raw.includes('<html') || raw.includes('<a href');
-  const payload = isHTML
-    ? {email_html: raw, email_text: '', county_key: county}
-    : {email_text: raw, email_html: '', county_key: county};
-
+  const text = document.getElementById('email-paste').value.trim();
+  if(!text) return;
+  showEmailLoading('Email wird ausgewertet...');
   try {
     const resp = await fetch('/api/analyze-email', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
+      body: JSON.stringify({email_text: text, county_key: county})
     });
     const data = await resp.json();
     hideEmailLoading();
     if(data.error) { alert(data.error); return; }
-    // Enrichment-Info anzeigen wenn vorhanden
-    const enr = data._enrichment;
-    if(enr && (enr.links_fetched?.length > 0 || enr.images_loaded > 0)) {
-      const msg = `✓ ${enr.links_fetched?.length || 0} Link(s) geöffnet, ${enr.images_loaded || 0} Bild(er) analysiert`;
-      document.getElementById('email-load-text').textContent = msg;
-    }
     showEmailListings(data.listings || []);
   } catch(e) {
     hideEmailLoading();
