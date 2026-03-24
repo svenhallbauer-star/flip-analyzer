@@ -1,8 +1,8 @@
 """
 FLIP ANALYZER - Backend Server
 Tampa Bay Fix & Flip Tool
-Datenquelle: Redfin (kein API-Key nötig)
-Läuft lokal auf http://localhost:5000
+Datenquelle: Redfin (kein API-Key noetig)
+Laeuft lokal auf http://localhost:5000
 """
 
 from flask import Flask, jsonify, request, send_from_directory, session, redirect, url_for, render_template_string
@@ -23,9 +23,9 @@ app.secret_key = os.environ.get("SECRET_KEY", "flip-analyzer-default-key-change-
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
 RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
 
-# ── Benutzer (aus Env-Variablen oder Defaults) ─────────────────────────────────
+# ?? Benutzer (aus Env-Variablen oder Defaults) ?????????????????????????????????
 def load_users():
-    """Lädt Benutzer aus USERS Env-Variable (JSON) oder nutzt Defaults."""
+    """Laedt Benutzer aus USERS Env-Variable (JSON) oder nutzt Defaults."""
     users_json = os.environ.get("USERS", "")
     if users_json:
         try:
@@ -64,7 +64,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flip Analyzer — Login</title>
+<title>Flip Analyzer -- Login</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -84,7 +84,7 @@ input:focus{outline:none;border-color:rgba(240,192,64,.4)}
 <body>
 <div class="login-box">
   <h1>FLIP ANALYZER</h1>
-  <div class="sub">Tampa Bay Pro — Bitte einloggen</div>
+  <div class="sub">Tampa Bay Pro -- Bitte einloggen</div>
   <div class="err">{{ error }}</div>
   <form method="POST" action="/login">
     <div class="field">
@@ -93,9 +93,9 @@ input:focus{outline:none;border-color:rgba(240,192,64,.4)}
     </div>
     <div class="field">
       <label>Passwort</label>
-      <input type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+      <input type="password" name="password" placeholder="????????" autocomplete="current-password" required>
     </div>
-    <button type="submit" class="btn">EINLOGGEN →</button>
+    <button type="submit" class="btn">EINLOGGEN -></button>
   </form>
 </div>
 </body>
@@ -166,7 +166,7 @@ def _anthropic_post(payload, timeout=55):
         )
         if resp.status_code == 429:
             wait = 20 * (attempt + 1)  # 20s, 40s, 60s
-            print(f"Rate limit 429 — warte {wait}s (Versuch {attempt+1}/3)")
+            print(f"Rate limit 429 -- warte {wait}s (Versuch {attempt+1}/3)")
             time.sleep(wait)
             continue
         resp.raise_for_status()
@@ -175,7 +175,7 @@ def _anthropic_post(payload, timeout=55):
     return resp
 
 
-# ── Auth Routen ────────────────────────────────────────────────────────────────
+# ?? Auth Routen ????????????????????????????????????????????????????????????????
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -244,14 +244,14 @@ def delete_user(username):
     if session.get("role") != "admin":
         return jsonify({"error": "Kein Zugriff"}), 403
     if username == session.get("username"):
-        return jsonify({"error": "Eigenen Account nicht löschbar"}), 400
+        return jsonify({"error": "Eigenen Account nicht loeschbar"}), 400
     users_json = os.environ.get("USERS", "")
     users = json.loads(users_json) if users_json else load_users()
     users.pop(username, None)
     os.environ["USERS"] = json.dumps(users)
     return jsonify({"ok": True})
 
-# ── Routen ─────────────────────────────────────────────────────────────────────
+# ?? Routen ?????????????????????????????????????????????????????????????????????
 
 @app.route("/")
 @login_required
@@ -311,11 +311,11 @@ def search_listings():
         print(f"Redfin Fehler: {e}")
 
     return jsonify({"source": "demo", "results": _demo_listings(county_key),
-                    "warning": "Keine Live-Daten verfügbar — Demo-Modus."})
+                    "warning": "Keine Live-Daten verfuegbar -- Demo-Modus."})
 
 
 def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
-    """Ruft Listings über RapidAPI Real-Time Real-Estate Data ab."""
+    """Ruft Listings ueber RapidAPI Real-Time Real-Estate Data ab."""
 
     # Determine city/state from county
     location_map = {
@@ -404,7 +404,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
                 continue
 
             listings.append({
-                "address":    address or "Adresse nicht verfügbar",
+                "address":    address or "Adresse nicht verfuegbar",
                 "price":      price,
                 "beds":       int(beds)   if beds  else 0,
                 "baths":      float(baths) if baths else 0,
@@ -429,7 +429,7 @@ def _fetch_rapidapi(county, min_price, max_price, min_beds, max_dom, api_key):
 def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
     """Ruft aktuelle Listings von Redfin ab."""
 
-    # Schritt 1: Region-ID für Redfin-Suche bestimmen
+    # Schritt 1: Region-ID fuer Redfin-Suche bestimmen
     region_id   = county["redfin_region_id"]
     region_type = county["redfin_region_type"]
 
@@ -470,7 +470,7 @@ def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
     resp = requests.get(url, headers=REDFIN_HEADERS, params=params, timeout=20)
     resp.raise_for_status()
 
-    # Redfin gibt "{}&&" vor dem JSON zurück — bereinigen
+    # Redfin gibt "{}&&" vor dem JSON zurueck -- bereinigen
     raw_text = resp.text
     if raw_text.startswith("{}&&"):
         raw_text = raw_text[4:]
@@ -513,7 +513,7 @@ def _fetch_redfin(county, min_price, max_price, min_beds, max_dom):
                 continue
 
             listings.append({
-                "address":      full_addr or "Adresse nicht verfügbar",
+                "address":      full_addr or "Adresse nicht verfuegbar",
                 "price":        int(price),
                 "beds":         int(beds),
                 "baths":        float(baths),
@@ -553,18 +553,18 @@ def analyze_pdf():
     if not pdf_b64:
         return jsonify({"error": "Keine PDF-Daten erhalten."}), 400
 
-    prompt = f"""Analysiere dieses Immobilien-Dokument (Exposé / MLS-Sheet) für {county['name']}.
+    prompt = f"""Analysiere dieses Immobilien-Dokument (Expose / MLS-Sheet) fuer {county['name']}.
 
-Extrahiere alle verfügbaren Immobiliendaten und gib sie als JSON zurück.
-Wenn Daten fehlen, schätze vernünftige Werte basierend auf dem Markt.
+Extrahiere alle verfuegbaren Immobiliendaten und gib sie als JSON zurueck.
+Wenn Daten fehlen, schaetze vernuenftige Werte basierend auf dem Markt.
 
 Antworte NUR mit validem JSON (kein Markdown):
 {{
-  "address": "<Straße, Stadt, State ZIP>",
+  "address": "<Strasse, Stadt, State ZIP>",
   "price": <Listenpreis als Zahl>,
   "beds": <Schlafzimmer>,
-  "baths": <Bäder>,
-  "sqft": <Wohnfläche>,
+  "baths": <Baeder>,
+  "sqft": <Wohnflaeche>,
   "year_built": <Baujahr>,
   "dom": <Days on Market oder 0>,
   "price_sqft": <Preis pro sqft>,
@@ -617,7 +617,7 @@ def analyze_email():
     prompt = f"""Analysiere diesen Email-Text von einem Makler oder einer Immobilien-Plattform.
 Extrahiere alle Immobilien-Listings die du findest.
 
-Markt: {county['name']} (ARV ${county['arv_low']}–${county['arv_high']}/sqft)
+Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft)
 
 Antworte NUR mit validem JSON (kein Markdown):
 {{
@@ -802,7 +802,7 @@ def scan_imap():
                     import re
                     link_texts = []
                     all_content = full_body
-                    # HTML body auch prüfen
+                    # HTML body auch pruefen
                     html_body = ""
                     if msg.is_multipart():
                         for part in msg.walk():
@@ -857,10 +857,10 @@ def scan_imap():
                                     link_info = f"""[Zillow Link: {url}]
 Adresse: {address}
 Preis: ${d.get('price', d.get('listPrice', 0)):,}
-Betten: {d.get('bedrooms', 0)} | Bäder: {d.get('bathrooms', 0)}
-Wohnfläche: {d.get('livingArea', 0)} sqft
+Betten: {d.get('bedrooms', 0)} | Baeder: {d.get('bathrooms', 0)}
+Wohnflaeche: {d.get('livingArea', 0)} sqft
 Baujahr: {d.get('yearBuilt', 0)}
-Fotos: {len(photos)} verfügbar
+Fotos: {len(photos)} verfuegbar
 ZPID: {zpid}"""
                                     link_texts.append(link_info)
                                     print(f"  Zillow-Daten geladen: {address[:50]}")
@@ -894,60 +894,86 @@ ZPID: {zpid}"""
         if not email_texts:
             return jsonify({"listings": [], "message": "Keine passenden Emails gefunden."})
 
-        # Analyze combined email content directly (no localhost call)
-        combined_text = "\n\n---\n\n".join(email_texts[:20])
+        print(f"  Analysiere {len(email_texts)} Emails einzeln...")
         county = COUNTY_CONFIG.get(county_key, COUNTY_CONFIG["pinellas"])
+        all_listings = []
 
-        prompt = f"""Du bist ein Immobilien-Daten-Extraktor fuer Fix-and-Flip Objekte in Tampa Bay, Florida.
+        # Jede Email EINZELN analysieren fuer maximale Genauigkeit
+        for idx, email_text in enumerate(email_texts):
+            print(f"  Email {idx+1}/{len(email_texts)} wird analysiert...")
+            try:
+                county_name = county['name']
+                arv_low = county['arv_low']
+                arv_high = county['arv_high']
+                prompt = f"""Du bist ein Immobilien-Daten-Extraktor fuer Fix-and-Flip in Tampa Bay, Florida.
 
-Analysiere ALLE folgenden Emails/Dokumente und extrahiere JEDES erwaehnte Immobilien-Objekt.
+Analysiere diese Email und extrahiere JEDES erwaehnte Immobilien-Objekt.
 
-WICHTIGE HINWEISE:
-- "WG:" oder "Fwd:" im Betreff = weitergeleitete Email, trotzdem analysieren
-- "New Property Available" = neues Angebot, immer extrahieren
-- Preis kann als "$250k", "250,000", "asking 250" etc. stehen
-- Fehlende Werte (sqft, year) bitte schaetzen basierend auf Beds/Baths und Markt
-- Mehrere Objekte pro Email moeglich — alle extrahieren
+REGELN:
+- "WG:" / "Fwd:" = weitergeleitet, trotzdem analysieren
+- Jeden Preis extrahieren: $250k, 250000, asking 250k, 200k spread etc.
+- Mehrere Objekte pro Email = alle einzeln zurueckgeben
+- Fehlende sqft: schaetzen (3/2 ~ 1400sqft, 2/1 ~ 1000sqft)
+- NIEMALS price=0 wenn ein Preis erkennbar ist
+- Auch Off-Market, Wholesale, Assignment Deals extrahieren
 
-Markt: {county['name']} (ARV ${county['arv_low']}-${county['arv_high']}/sqft, Median ${county['median_price']:,})
+Markt: {county_name} (ARV {arv_low}-{arv_high} USD/sqft)
+
+EMAIL:
+{email_text[:5000]}
 
 Antworte NUR mit validem JSON:
 {{
   "listings": [
     {{
       "address": "<vollstaendige US-Adresse>",
-      "price": <Preis als Zahl ohne Komma, NIEMALS 0>,
-      "beds": <Schlafzimmer als Zahl>,
-      "baths": <Bäder als Zahl>,
-      "sqft": <Wohnflaeche, mindestens 800 schaetzen wenn unbekannt>,
-      "year_built": <Baujahr oder 0>,
+      "price": <Preis als Zahl>,
+      "beds": <Beds>,
+      "baths": <Baths>,
+      "sqft": <sqft geschaetzt>,
+      "year_built": 0,
       "dom": 0,
-      "price_sqft": <Preis/sqft oder 0>,
+      "price_sqft": 0,
       "county": "{county_key}",
-      "listing_url": "<URL falls vorhanden, sonst leer>",
+      "listing_url": "",
       "zpid": "",
       "photos": [],
       "source": "email",
-      "notes": "<alle wichtigen Details: Zustand, Spread, ARV, Reno-Kosten, Besonderheiten>",
+      "notes": "<ARV, Spread, Zustand, alle wichtigen Details aus der Email>",
       "zestimate": 0
     }}
   ]
-}}
+}}"""
 
-Email-Text:
-{combined_text[:4000]}"""
+                resp = _anthropic_post({
+                    "model": "claude-sonnet-4-5",
+                    "max_tokens": 1500,
+                    "system": "Immobilien-Extraktor. Antworte NUR mit validem JSON. Extrahiere ALLE Objekte.",
+                    "messages": [{"role": "user", "content": prompt}]
+                })
+                raw = resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
+                result = json.loads(raw)
+                found = result.get("listings", [])
+                print(f"    -> {len(found)} Objekte gefunden")
+                all_listings.extend(found)
+            except Exception as e:
+                print(f"    Email {idx+1} Fehler: {e}")
+                continue
 
-        resp = _anthropic_post({
-            "model": "claude-sonnet-4-5",
-            "max_tokens": 1500,
-            "system": "Du bist Immobilien-Daten-Extraktor. Antworte NUR mit validem JSON.",
-            "messages": [{"role": "user", "content": prompt}]
-        })
-        raw = resp.json()["content"][0]["text"].replace("```json","").replace("```","").strip()
-        return jsonify(json.loads(raw))
+        # Duplikate entfernen (gleiche Adresse)
+        seen = set()
+        unique_listings = []
+        for l in all_listings:
+            key = l.get("address","").lower().strip()[:30]
+            if key and key not in seen:
+                seen.add(key)
+                unique_listings.append(l)
+
+        print(f"  Gesamt: {len(unique_listings)} einzigartige Objekte aus {len(email_texts)} Emails")
+        return jsonify({"listings": unique_listings})
 
     except imaplib.IMAP4.error as e:
-        return jsonify({"error": f"IMAP-Fehler: {e}. Bitte App-Passwort prüfen."}), 400
+        return jsonify({"error": f"IMAP-Fehler: {e}. Bitte App-Passwort pruefen."}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -968,28 +994,17 @@ def analyze_listing():
     training_ctx = get_full_training_context()
     
     # Erweiterte Lernkontext aus Bildanalyse Deal 1
-    visual_insights = f"""
-VISUELLE LERNMUSTER AUS DEAL 1 (Ontario Dr — Schimmel/Fluthaus → 20k Verkauf):
-- Massiver Schimmelbefall (Flutmarken sichtbar) + Flood Zone AE = Ankauf für 0k möglich
-- Schimmelremediation kalkulierbar: .000-15.000 professionell
-- Waterfront-Lage rechtfertigt trotzdem 47/sqft ARV in Pasco
-- Außenverkleidung komplett defekt (T1-11 Holzsiding) → Stucco/Neubeplankung -12k
-- Florida Room mit Vollschimmel → Entkernung + Neubau -10k
-- Alle Böden entfernt, nackte Betonplatten = typisch nach Flut → LVP /sqft
-- HVAC nicht vorhanden = immer -5k einplanen bei Flutobjekten
-- Elektrische Anlage veraltet = -5k Misc Electric
-
-KONDITIONS-SCORING SYSTEM (aus echten Deals gelernt):
-- Schimmel bodennah (<30cm): MUSS Remediation, +.000-5.000 auf Reno
-- Schimmel flächig (>50% einer Wand): MUSS Remediation, +.000-15.000
-- Flutmarken sichtbar: Strukturprüfung + Remediation zwingend
-- Decke durchhängend/Wasserflecken: Dachkontrolle + Reparatur
-- Böden entfernt/nackt: Vorarbeit bereits gemacht, spart Entsorgung
-- Küche 70er-Original: Komplettaustausch 0.000-15.000
-- Bad Original (>1990): .500-5.000 pro Bad
-"""
+    visual_insights = (
+        "VISUELLE LERNMUSTER AUS DEAL 1:\n"
+        "- Schimmel + Flood Zone AE: Ankauf guenstig moeglich\n"
+        "- Schimmelremediation: 5000-15000 USD\n"
+        "- Kueche 70er-Original: 10000-15000 USD\n"
+        "- Bad Original: 3500-5000 USD\n"
+        "- HVAC fehlend: 5000 USD einplanen\n"
+        "- Boeden entfernt: spart Entsorgungskosten\n"
+    )
     training_ctx = training_ctx + visual_insights
-    prompt = f"""Analysiere dieses Fix-and-Flip Objekt für {county['name']} (Q1 2026):
+    prompt = f"""Analysiere dieses Fix-and-Flip Objekt fuer {county['name']} (Q1 2026):
 
 {training_ctx}
 === NEUE ANALYSE ===
@@ -997,25 +1012,25 @@ KONDITIONS-SCORING SYSTEM (aus echten Deals gelernt):
 MARKTDATEN {county['name']}:
 - Median Preis: ${county['median_price']:,}
 - Median $/sqft: ${county['median_sqft']}
-- ARV-Spanne: ${county['arv_low']}–${county['arv_high']}/sqft
-- Ø Days on Market: {county['avg_dom']} Tage
+- ARV-Spanne: ${county['arv_low']}-${county['arv_high']}/sqft
+- ? Days on Market: {county['avg_dom']} Tage
 - {county['below_ask']}% verkaufen unter Listenpreis
 - YoY: {county['yoy']}
 
 OBJEKT:
 - Adresse: {listing.get('address', 'unbekannt')}
 - Angebotspreis: ${listing.get('price', 0):,}
-- Wohnfläche: {listing.get('sqft', 0)} sqft
+- Wohnflaeche: {listing.get('sqft', 0)} sqft
 - Baujahr: {listing.get('year_built', 'unbekannt')}
 - {listing.get('beds', 0)}bd / {listing.get('baths', 0)}ba
 - Days on Market: {listing.get('dom', 0)}
 {f"- Notizen: {listing.get('notes', '')}" if listing.get('notes') else ""}
 
-Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
+Antworte NUR mit validem JSON (kein Markdown, kein Text ausserhalb):
 {{
   "deal_score": <0-100>,
   "verdict": "GO|NO-GO|MAYBE",
-  "verdict_reason": "<2 Sätze auf Deutsch>",
+  "verdict_reason": "<2 Saetze auf Deutsch>",
   "arv": <Zahl>,
   "arv_per_sqft": <Zahl>,
   "max_purchase_price": <ARV mal 0.70 minus Renovierungskosten>,
@@ -1026,19 +1041,19 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
   "holding_costs": <Zahl>,
   "closing_costs": <Zahl>,
   "renovation_items": [
-    {{"name": "Küche", "cost": <Zahl>, "priority": "MUSS", "condition": "schlecht"}},
-    {{"name": "Bäder", "cost": <Zahl>, "priority": "MUSS", "condition": "mittel"}},
+    {{"name": "Kueche", "cost": <Zahl>, "priority": "MUSS", "condition": "schlecht"}},
+    {{"name": "Baeder", "cost": <Zahl>, "priority": "MUSS", "condition": "mittel"}},
     {{"name": "Dach", "cost": <Zahl>, "priority": "MUSS", "condition": "mittel"}},
     {{"name": "HVAC", "cost": <Zahl>, "priority": "MUSS", "condition": "unklar"}},
-    {{"name": "Böden", "cost": <Zahl>, "priority": "SOLL", "condition": "mittel"}},
-    {{"name": "Außen / Curb Appeal", "cost": <Zahl>, "priority": "KANN", "condition": "mittel"}}
+    {{"name": "Boeden", "cost": <Zahl>, "priority": "SOLL", "condition": "mittel"}},
+    {{"name": "Aussen / Curb Appeal", "cost": <Zahl>, "priority": "KANN", "condition": "mittel"}}
   ],
   "comps": [
-    {{"address": "<echte Straße in {county['name']}>", "sale_price": <Zahl>, "sqft": <Zahl>, "days_ago": <1-90>, "beds_baths": "3/2"}},
-    {{"address": "<echte Straße>", "sale_price": <Zahl>, "sqft": <Zahl>, "days_ago": <1-90>, "beds_baths": "3/2"}},
-    {{"address": "<echte Straße>", "sale_price": <Zahl>, "sqft": <Zahl>, "days_ago": <1-90>, "beds_baths": "3/2"}}
+    {{"address": "<echte Strasse in {county['name']}>", "sale_price": <Zahl>, "sqft": <Zahl>, "days_ago": <1-90>, "beds_baths": "3/2"}},
+    {{"address": "<echte Strasse>", "sale_price": <Zahl>, "sqft": <Zahl>, "days_ago": <1-90>, "beds_baths": "3/2"}},
+    {{"address": "<echte Strasse>", "sale_price": <Zahl>, "sqft": <Zahl>, "days_ago": <1-90>, "beds_baths": "3/2"}}
   ],
-  "market_insights": "<2-3 Sätze auf Deutsch zum aktuellen Markt in {county['name']}>",
+  "market_insights": "<2-3 Saetze auf Deutsch zum aktuellen Markt in {county['name']}>",
   "risk_flags": ["<Risiko auf Deutsch>", "<Risiko auf Deutsch>"],
   "opportunities": ["<Chance auf Deutsch>", "<Chance auf Deutsch>"]
 }}"""
@@ -1059,7 +1074,7 @@ Antworte NUR mit validem JSON (kein Markdown, kein Text außerhalb):
         return jsonify({"error": str(e)}), 500
 
 
-# ── Twilio / WhatsApp ──────────────────────────────────────────────────────────
+# ?? Twilio / WhatsApp ??????????????????????????????????????????????????????????
 
 def _send_whatsapp(message: str) -> bool:
     """Sendet WhatsApp Nachricht via Twilio."""
@@ -1074,7 +1089,7 @@ def _send_whatsapp(message: str) -> bool:
         return False
     try:
         resp = requests.post(
-            f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",
+            ("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json"),
             auth=(sid, token),
             data={"From": from_, "To": to, "Body": message},
             timeout=10
@@ -1119,14 +1134,14 @@ def save_twilio_settings():
 @app.route("/api/whatsapp-test", methods=["POST"])
 @login_required
 def whatsapp_test():
-    ok = _send_whatsapp("🏠 Flip Analyzer Test-Nachricht — Benachrichtigungen sind aktiv!")
-    return jsonify({"ok": ok, "error": "" if ok else "Twilio-Konfiguration prüfen"})
+    ok = _send_whatsapp("? Flip Analyzer Test-Nachricht -- Benachrichtigungen sind aktiv!")
+    return jsonify({"ok": ok, "error": "" if ok else "Twilio-Konfiguration pruefen"})
 
 
 @app.route("/api/auto-scan", methods=["POST", "GET"])
 def auto_scan():
-    """Automatischer Scan — wird 2x täglich von Railway Cron aufgerufen."""
-    # Sicherheits-Token prüfen
+    """Automatischer Scan -- wird 2x taeglich von Railway Cron aufgerufen."""
+    # Sicherheits-Token pruefen
     token = request.args.get("token", "") or (request.json or {}).get("token", "")
     expected = os.environ.get("CRON_TOKEN", "flip-cron-2024")
     if token != expected:
@@ -1145,7 +1160,7 @@ def auto_scan():
                                        os.environ.get("RAPIDAPI_KEY", "")) or                        _fetch_redfin(county, 150000, 500000, 3, 90) or []
 
             if listings:
-                results_summary.append(f"• {county['name']}: {len(listings)} Objekte")
+                results_summary.append(f"? {county['name']}: {len(listings)} Objekte")
                 new_listings_count += len(listings)
         except Exception as e:
             print(f"Auto-scan error {county_key}: {e}")
@@ -1167,23 +1182,23 @@ def auto_scan():
             email_count = len(msg_ids[0].split()) if msg_ids[0] else 0
             mail.logout()
             if email_count:
-                results_summary.append(f"• {email_count} neue Emails im Postfach")
+                results_summary.append(f"? {email_count} neue Emails im Postfach")
         except Exception as e:
             print(f"Auto-scan IMAP error: {e}")
 
     # WhatsApp senden wenn Ergebnisse
     if new_listings_count > 0 or email_count > 0:
-        msg = f"🏠 Flip Analyzer — Täglicher Scan\n\n"
+        msg = f"? Flip Analyzer -- Taeglicher Scan\n\n"
         msg += "\n".join(results_summary)
         msg += f"\n\nGesamt: {new_listings_count} Objekte + {email_count} Emails"
-        msg += f"\n\n👉 {os.environ.get('APP_URL','flip-analyzer-production.up.railway.app')}"
+        msg += f"\n\n? {os.environ.get('APP_URL','flip-analyzer-production.up.railway.app')}"
         _send_whatsapp(msg)
 
     return jsonify({"ok": True, "listings": new_listings_count, "emails": email_count,
                     "summary": results_summary})
 
 
-# ── IMAP Credentials (persistent in Postgres) ─────────────────────────────────
+# ?? IMAP Credentials (persistent in Postgres) ?????????????????????????????????
 
 def _get_db_conn():
     """Datenbankverbindung holen."""
@@ -1297,7 +1312,7 @@ def delete_imap_credentials():
     return jsonify({"ok": True})
 
 
-# ── Zillow Foto-Analyse ────────────────────────────────────────────────────────
+# ?? Zillow Foto-Analyse ????????????????????????????????????????????????????????
 
 @app.route("/api/analyze-listing-photos", methods=["POST"])
 @login_required
@@ -1466,7 +1481,7 @@ def analyze_listing_photos():
     })
 
 
-# ── RAG Bildanalyse ────────────────────────────────────────────────────────────
+# ?? RAG Bildanalyse ????????????????????????????????????????????????????????????
 
 @app.route("/api/analyze-image-rag", methods=["POST"])
 @login_required
@@ -1603,7 +1618,7 @@ Based on the image AND similar reference cases -- respond ONLY with valid JSON:
         return jsonify({"error": str(e)}), 500
 
 
-# ── Demo-Daten ─────────────────────────────────────────────────────────────────
+# ?? Demo-Daten ?????????????????????????????????????????????????????????????????
 def _demo_listings(county_key):
     demos = {
         "pinellas": [
@@ -1630,10 +1645,10 @@ def _demo_listings(county_key):
 
 if __name__ == "__main__":
     print("\n" + "="*55)
-    print("  FLIP ANALYZER — Tampa Bay")
-    print("  Datenquelle: Redfin (kein API-Key nötig)")
-    print("  Server läuft auf: http://localhost:5000")
+    print("  FLIP ANALYZER -- Tampa Bay")
+    print("  Datenquelle: Redfin (kein API-Key noetig)")
+    print("  Server laeuft auf: http://localhost:5000")
     print("="*55)
-    print(f"  Anthropic Key: {'✓ konfiguriert' if ANTHROPIC_KEY else '✗ fehlt (in App eintragen)'}")
+    print(f"  Anthropic Key: {'? konfiguriert' if ANTHROPIC_KEY else '? fehlt (in App eintragen)'}")
     print("="*55 + "\n")
     app.run(debug=True, port=5000)
